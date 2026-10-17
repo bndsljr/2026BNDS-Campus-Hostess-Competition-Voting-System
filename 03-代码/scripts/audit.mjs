@@ -146,7 +146,8 @@ try {
   run("UPDATE settings SET value='1' WHERE key='group_enabled'");
   run("UPDATE settings SET value='' WHERE key IN ('group_start_at','group_end_at')");
 
-  const pick = playersAll.slice(0, 3).map((p) => p.id);
+  const PICK_COUNT = Number(q("SELECT value FROM settings WHERE key='public_pick_count'").value);
+  const pick = playersAll.slice(0, Math.min(PICK_COUNT, playersAll.length)).map((p) => p.id);
 
   // 1.1 正常投票
   {
@@ -226,7 +227,7 @@ try {
     const c = addCode('public', '审计-超选');
     const cl = newClient();
     await cl.post('/vote/login', { code: c.code, competition: 'group' });
-    const over = await cl.post('/vote/submit', { competition: 'group', player: playersAll.slice(0, 4).map((p) => p.id) });
+    const over = await cl.post('/vote/submit', { competition: 'group', player: playersAll.slice(0, PICK_COUNT + 1).map((p) => p.id) });
     const none = await cl.post('/vote/submit', { competition: 'group', player: [] });
     check('超过可选人数被拒绝', over.status === 400, `status=${over.status}`);
     check('一张都不选被拒绝', none.status === 400, `status=${none.status}`);
@@ -318,11 +319,14 @@ try {
 
   try {
     wipe();
-    run("UPDATE settings SET value='4' WHERE key='judge_count'");
+    const JC = 3;   // 示例：3 位评审
+    const TOP = 5;  // 示例：第 1 名 5 分
+    const CAP = 105;
+    run("UPDATE settings SET value=? WHERE key='judge_count'", String(JC));
     run("UPDATE settings SET value='submitted' WHERE key='missing_judge_rule'");
-    run("UPDATE settings SET value='110' WHERE key='score_cap'");
+    run("UPDATE settings SET value=? WHERE key='score_cap'", String(CAP));
     run("UPDATE settings SET value='2' WHERE key='score_decimals'");
-    run("UPDATE settings SET value='10' WHERE key='top_points'");
+    run("UPDATE settings SET value=? WHERE key='top_points'", String(TOP));
     run("UPDATE settings SET value='0' WHERE key='zero_vote_points'");
 
     const P = playersAll;
@@ -364,11 +368,13 @@ try {
     });
     check('票数统计正确', votesOk);
 
-    // 并列第1（4票两人）→ 都赋 10 分；第3名（1票）→ 名次3 → 8 分；0票 → 0分
-    check('并列第 1 名两人均得 10 分', res.get(P[0].id).public_points === 10 && res.get(P[1].id).public_points === 10,
+    // 并列第1（4票两人）→ 都拿第 1 名的赋分；第3名（1票）→ TOP-2 分；0票 → 0分
+    const TOP1 = TOP - 1 + 1;      // 第 1 名
+    const TOP3 = Math.max(0, TOP - 3 + 1); // 第 3 名
+    check(`并列第 1 名两人均得 ${TOP1} 分`, res.get(P[0].id).public_points === TOP1 && res.get(P[1].id).public_points === TOP1,
       `${res.get(P[0].id).public_points}/${res.get(P[1].id).public_points}`);
     check('并列后名次顺延（第 3 名）', res.get(P[2].id).public_rank === 3, `实际 ${res.get(P[2].id).public_rank}`);
-    check('第 3 名赋 8 分', res.get(P[2].id).public_points === 8, `实际 ${res.get(P[2].id).public_points}`);
+    check(`第 3 名赋 ${TOP3} 分`, res.get(P[2].id).public_points === TOP3, `实际 ${res.get(P[2].id).public_points}`);
     check('零票选手赋 0 分', res.get(P[9].id).public_points === 0, `实际 ${res.get(P[9].id).public_points}`);
 
     // 专业平均分：P0 = (100+60)/2 = 80（按实际提交人数）
@@ -378,13 +384,15 @@ try {
       `${res.get(P[0].id).pro_judges}/${res.get(P[6].id).pro_judges}`);
 
     // 得分 = 平均分 + 赋分
-    check('赛事得分 = 专业平均分 + 大众赋分', Math.abs(res.get(P[0].id).final_score - (80 + 10)) < 1e-9, `实际 ${res.get(P[0].id).final_score}`);
+    check('赛事得分 = 专业平均分 + 大众赋分', Math.abs(res.get(P[0].id).final_score - (80 + TOP1)) < 1e-9, `实际 ${res.get(P[0].id).final_score}`);
     check('零票选手得分 = 平均分', Math.abs(res.get(P[9].id).final_score - 10) < 1e-9, `实际 ${res.get(P[9].id).final_score}`);
 
     // 最终总成绩 = 小组赛×0.4 + 个人赛×0.6
     const fin = new Map(all('SELECT * FROM final_results').map((r) => [r.player_id, r]));
     const f0 = fin.get(P[0].id);
-    const expectTotal = Math.round((f0.group_score * 0.4 + f0.individual_score * 0.6) * 100) / 100;
+    const WGT = Number(q("SELECT value FROM settings WHERE key='weight_group'").value);
+    const WIT = Number(q("SELECT value FROM settings WHERE key='weight_individual'").value);
+    const expectTotal = Math.round((f0.group_score * WGT + f0.individual_score * WIT) * 100) / 100;
     check('最终总成绩加权计算正确', Math.abs(f0.total_score - expectTotal) < 1e-9, `${f0.total_score} vs ${expectTotal}`);
 
     // 与内存计算（页面/导出所用）保持一致
@@ -392,18 +400,19 @@ try {
     check('导出接口在统计状态下可用', liveRes.status === 200, `status=${liveRes.status}`);
 
     /* ---- 中途修改规则后是否正确重算 ---- */
-    run("UPDATE settings SET value='110' WHERE key='score_cap'");
+    run("UPDATE settings SET value=? WHERE key='score_cap'", String(CAP));
     run("UPDATE settings SET value='1' WHERE key='score_cap'"); // 极端：上限 1 分
     await admin.post('/manage/recalc', { back: '/manage' });
     const capped = q("SELECT final_score FROM results WHERE competition='group' AND player_id=?", P[0].id).final_score;
     check('把上限设为 1 分时全部被截断为 1', capped === 1, `实际 ${capped}`);
-    run("UPDATE settings SET value='110' WHERE key='score_cap'");
+    run("UPDATE settings SET value=? WHERE key='score_cap'", String(CAP));
 
     /* ---- missing_judge_rule = all 的行为 ---- */
     run("UPDATE settings SET value='all' WHERE key='missing_judge_rule'");
     await admin.post('/manage/recalc', { back: '/manage' });
     const p6all = q("SELECT pro_avg FROM results WHERE competition='group' AND player_id=?", P[6].id).pro_avg;
-    check('缺评按 0 分计入（÷4）时 P6 = 40/4 = 10', Math.abs(p6all - 10) < 1e-9, `实际 ${p6all}`);
+    const expectAllRule = Math.round((40 / JC) * 100) / 100; // 与系统一致：保留 2 位小数
+    check(`缺评按 0 分计入（÷${JC}）时 P6 = ${expectAllRule}`, Math.abs(p6all - expectAllRule) < 1e-9, `实际 ${p6all}`);
     run("UPDATE settings SET value='submitted' WHERE key='missing_judge_rule'");
 
     /* ---- 超过 10 位选手时名次赋分 ---- */
@@ -712,6 +721,11 @@ try {
       // 计分过程表：①票数 ③赋分 ⑧平均分 ⑪最终得分 应与库一致
       const wsProc = wb.getWorksheet('小组赛-计分过程');
       const procG = new Map(all("SELECT r.*, p.name FROM results r JOIN players p ON p.id=r.player_id WHERE r.competition='group'").map((r) => [r.name, r]));
+      // 列位置 = 6 + 评审席位数 + 固定偏移（评分列数量随评审席位数变化）
+      const jcNow = Number(q("SELECT value FROM settings WHERE key='judge_count'").value);
+      const COL_POINTS = 6;
+      const COL_PROAVG = 10 + jcNow;
+      const COL_FINAL = 13 + jcNow;
       let procBad = 0;
       wsProc.eachRow((row, idx) => {
         if (idx === 1) return;
@@ -719,9 +733,9 @@ try {
         if (!name || !procG.has(name)) return;
         const d = procG.get(name);
         if (Number(row.getCell(3).value) !== d.public_votes) procBad++;
-        else if (Math.abs(Number(row.getCell(6).value) - d.public_points) > 1e-9) procBad++;
-        else if (Math.abs(Number(row.getCell(14).value) - d.pro_avg) > 1e-9) procBad++;
-        else if (Math.abs(Number(row.getCell(17).value) - d.final_score) > 1e-9) procBad++;
+        else if (Math.abs(Number(row.getCell(COL_POINTS).value) - d.public_points) > 1e-9) procBad++;
+        else if (Math.abs(Number(row.getCell(COL_PROAVG).value) - d.pro_avg) > 1e-9) procBad++;
+        else if (Math.abs(Number(row.getCell(COL_FINAL).value) - d.final_score) > 1e-9) procBad++;
       });
       check('导出"计分过程"逐步数值与库一致', procBad === 0, `${procBad} 处不一致`);
     }
@@ -774,19 +788,25 @@ try {
 
   // 7.1 后台以"北京时间"录入，入库必须换算为正确的 UTC
   {
+    // 取“明天”的日期，北京时间 09:30 ~ 11:00（避免写死日期随实际时间过期）
+    const bjTomorrow = (() => {
+      const d = new Date(Date.now() + 8 * 3600e3 + 24 * 3600e3);
+      const p2 = (n) => String(n).padStart(2, '0');
+      return `${d.getUTCFullYear()}-${p2(d.getUTCMonth() + 1)}-${p2(d.getUTCDate())}`;
+    })();
     await admin.post('/manage/schedule/save', {
-      group_enabled: 'on', group_start_at: '2026-10-12T09:30', group_end_at: '2026-10-12T11:00',
+      group_enabled: 'on', group_start_at: `${bjTomorrow}T09:30`, group_end_at: `${bjTomorrow}T11:00`,
       individual_enabled: 'on', individual_start_at: '', individual_end_at: '',
     });
     const st = q("SELECT value FROM settings WHERE key='group_start_at'").value;
     const en = q("SELECT value FROM settings WHERE key='group_end_at'").value;
-    // 北京时间 09:30 → UTC 01:30
-    check('北京时间 09:30 正确换算为 UTC 01:30', st === '2026-10-12T01:30:00.000Z', `实际 ${st}`);
-    check('北京时间 11:00 正确换算为 UTC 03:00', en === '2026-10-12T03:00:00.000Z', `实际 ${en}`);
+    // 北京时间 09:30 == UTC 01:30，北京时间 11:00 == UTC 03:00
+    check('北京时间 09:30 正确换算为 UTC 01:30', st === `${bjTomorrow}T01:30:00.000Z`, `实际 ${st}`);
+    check('北京时间 11:00 正确换算为 UTC 03:00', en === `${bjTomorrow}T03:00:00.000Z`, `实际 ${en}`);
 
     // 反向：后台页面回显仍是北京时间
     const html = await (await admin.get('/manage/schedule')).text();
-    check('后台表单回显为北京时间 09:30（未串时区）', html.includes('value="2026-10-12T09:30"'), '回显值不正确');
+    check('后台表单回显为北京时间 09:30（未串时区）', html.includes(`value="${bjTomorrow}T09:30"`), '回显值不正确');
 
     // 该时刻之前应为「未开始」
     const status = await (await fetch(BASE + '/healthz')).json();
@@ -997,7 +1017,7 @@ try {
     await admin.post('/manage/recalc', { back: '/manage' });
     const top = q("SELECT public_points FROM results WHERE competition='group' ORDER BY public_votes DESC LIMIT 1");
     check('第 1 名赋分设为 0 时确实为 0', top.public_points === 0, `实际 ${top.public_points}`);
-    run("UPDATE settings SET value='10' WHERE key='top_points'");
+    run("UPDATE settings SET value=? WHERE key='top_points'", String(Number(q("SELECT value FROM settings WHERE key='top_points'").value) || 5));
     await admin.post('/manage/recalc', { back: '/manage' });
   }
 

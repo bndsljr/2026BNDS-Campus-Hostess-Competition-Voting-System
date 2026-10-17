@@ -135,6 +135,7 @@ async function oneUser(code, picks, phase) {
 const db = new DatabaseSync(DB_FILE);
 const players = db.prepare('SELECT id FROM players WHERE active=1 ORDER BY sort_order,no,id').all().map((r) => r.id);
 const judgeCount = Number(db.prepare("SELECT value FROM settings WHERE key='judge_count'").get().value);
+const pickCount = Number(db.prepare("SELECT value FROM settings WHERE key='public_pick_count'").get().value);
 const before = {
   votes: db.prepare('SELECT COUNT(*) c FROM votes').get().c,
   scores: db.prepare('SELECT COUNT(*) c FROM scores').get().c,
@@ -182,7 +183,7 @@ console.log(`已创建 ${codes.length} 条临时密码条（前缀 ${PREFIX}）`
 const t0 = Date.now();
 await Promise.all(
   codes.map((code, i) => {
-    const picks = [players[i % players.length], players[(i + 1) % players.length], players[(i + 2) % players.length]];
+    const picks = Array.from({ length: pickCount }, (_, k) => players[(i + k) % players.length]);
     return oneUser(code, [...new Set(picks)], PHASE);
   })
 );

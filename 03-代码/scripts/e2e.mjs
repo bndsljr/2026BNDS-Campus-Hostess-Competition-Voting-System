@@ -194,14 +194,15 @@ console.log(`\n=== 端到端验收 @ ${BASE} ===\n`);
     const ts = new Date().toISOString();
     for (let i = pubCount; i < 6; i++) ins.run('E2EPUB' + String(i).padStart(2, '0'), `E2E大众${i}`, ts, ts);
   }
+  const judgeCount = Number(db.prepare("SELECT value FROM settings WHERE key='judge_count'").get().value);
   const proCount = db.prepare("SELECT COUNT(*) AS c FROM voting_codes WHERE role='pro'").get().c;
-  if (proCount < 4) {
+  if (proCount < judgeCount) {
     const ins = db.prepare(
       `INSERT INTO voting_codes (code, role, label, judge_slot, enabled, note, created_at, updated_at)
        VALUES (?, 'pro', ?, ?, 1, 'e2e', ?, ?)`
     );
     const ts = new Date().toISOString();
-    for (let i = proCount; i < 4; i++) ins.run('E2EPRO' + String(i + 1).padStart(2, '0'), `E2E评审${i + 1}`, i + 1, ts, ts);
+    for (let i = proCount; i < judgeCount; i++) ins.run('E2EPRO' + String(i + 1).padStart(2, '0'), `E2E评审${i + 1}`, i + 1, ts, ts);
   }
   await admin.post('/manage/recalc', { back: '/manage' });
   check('测试前重置投票与打分数据', true);
@@ -209,17 +210,18 @@ console.log(`\n=== 端到端验收 @ ${BASE} ===\n`);
 
 const players = db.prepare('SELECT id, no, name FROM players WHERE active = 1 ORDER BY sort_order, no').all();
 const pubCodes = db.prepare("SELECT * FROM voting_codes WHERE role='public' AND enabled=1 ORDER BY id LIMIT 6").all();
-const proCodes = db.prepare("SELECT * FROM voting_codes WHERE role='pro' AND enabled=1 AND judge_slot IS NOT NULL ORDER BY judge_slot LIMIT 4").all();
+const judgeCountCfg = Number(db.prepare("SELECT value FROM settings WHERE key='judge_count'").get().value);
+const proCodes = db.prepare("SELECT * FROM voting_codes WHERE role='pro' AND enabled=1 AND judge_slot IS NOT NULL ORDER BY judge_slot LIMIT ?").all(judgeCountCfg);
 
 console.log(`  选手 ${players.length} 位，大众密码条 ${pubCodes.length} 条，专业密码条 ${proCodes.length} 条\n`);
 
-// 4. 大众评审投票：设计票数分布 选手01=3票, 选手02=2票, 选手03=2票, 选手04=1票, 选手05=1票, 其余 0 票
+// 4. 大众评审投票：按下述计划投票（票数分布由 plan 决定，N = 可勾选人数）
+const PICK = Number(db.prepare("SELECT value FROM settings WHERE key='public_pick_count'").get().value);
 {
-  const plan = [
-    [0, [0, 1, 2]],
-    [1, [0, 1, 3]],
-    [2, [0, 2, 4]],
-  ];
+  // 用两条各含 PICK 位选手的票，构造 选手01/02 并列第 1 的局面
+  const plan = PICK >= 3
+    ? [[0, [0, 1, 2]], [1, [0, 1, 3]], [2, [0, 2, 4]]]
+    : [[0, [0, 1]], [1, [0, 2]], [2, [1, 3]]];
   for (const [ci, picks] of plan) {
     const c = newClient();
     const code = pubCodes[ci].code;
@@ -238,14 +240,14 @@ console.log(`  选手 ${players.length} 位，大众密码条 ${pubCodes.length}
     const againHtml = await again.text();
     check('同一密码条重复投票被拒绝', again.status === 400 && againHtml.includes('已完成'), `status=${again.status}`);
   }
-  // 超过 3 人必须被拒
+  // 超过可勾选人数必须被拒
   const c = newClient();
   await c.post('/vote/login', { code: pubCodes[3].code, competition: 'individual' });
   const over = await c.post('/vote/submit', {
     competition: 'individual',
-    player: players.slice(0, 4).map((p) => p.id),
+    player: players.slice(0, PICK + 1).map((p) => p.id),
   });
-  check('勾选超过 3 人被服务端拒绝', over.status === 400 && (await over.text()).includes('最多只能选择 3 位'));
+  check(`勾选超过 ${PICK} 人被服务端拒绝`, over.status === 400 && (await over.text()).includes(`最多只能选择 ${PICK} 位`));
   // 一人也不选
   const none = await c.post('/vote/submit', { competition: 'individual' });
   check('一张票都不选被拒绝', none.status === 400 && (await none.text()).includes('至少选择 1 位'));
@@ -313,8 +315,14 @@ console.log(`  选手 ${players.length} 位，大众密码条 ${pubCodes.length}
   const voteMap = new Map(votes.map((r) => [r.player_id, r.c]));
   const scores = db.prepare("SELECT * FROM scores WHERE competition='group'").all();
 
-  // 期望票数：选手01=3, 选手02=2, 选手03=2, 选手04=1, 选手05=1, 其余 0
-  const expectVotes = [3, 2, 2, 1, 1, 0, 0, 0, 0, 0];
+  // 期望票数：由上面的 plan 推导（每条票按 PICK 位选手）
+  const planVotes = new Map();
+  for (const [, picks] of (PICK >= 3
+    ? [[0, [0, 1, 2]], [1, [0, 1, 3]], [2, [0, 2, 4]]]
+    : [[0, [0, 1]], [1, [0, 2]], [2, [1, 3]]])) {
+    for (const i of picks) planVotes.set(i, (planVotes.get(i) || 0) + 1);
+  }
+  const expectVotes = players.map((_, i) => planVotes.get(i) || 0);
   let voteOk = true;
   players.forEach((p, i) => {
     const actual = voteMap.get(p.id) || 0;
@@ -323,61 +331,65 @@ console.log(`  选手 ${players.length} 位，大众密码条 ${pubCodes.length}
       console.log(`     票数不符：${p.name} 期望 ${expectVotes[i]}，实际 ${actual}`);
     }
   });
-  check('大众票数统计与预期一致 [3,2,2,1,1,0,0,0,0,0]', voteOk);
+  check('大众票数统计与预期一致', voteOk, JSON.stringify(expectVotes));
 
-  // 期望赋分：第1名10分、并列第2名9分、并列第4名7分、零票0分
+  // 由票数推导名次（标准竞赛排名）与赋分（第 1 名 TOP 分逐名递减，0 票得 0 分）
+  const TOP = Number(settings.top_points);
+  const sorted = expectVotes.map((v, i) => ({ v, i })).sort((a, b) => b.v - a.v);
+  const expectRank = new Array(players.length);
+  let lastV = null;
+  let lastRank = 0;
+  sorted.forEach((cur, idx) => {
+    if (cur.v !== lastV) { lastRank = idx + 1; lastV = cur.v; }
+    expectRank[cur.i] = lastRank;
+  });
+  const expectPoints = expectVotes.map((v, i) => (v === 0 ? 0 : Math.max(0, TOP - expectRank[i] + 1)));
+
   const resByPlayer = new Map(rows.map((r) => [r.player_id, r]));
-  eq('第 1 名赋分 = 10', resByPlayer.get(players[0].id).public_points, 10);
-  eq('并列第 2 名赋分 = 9', resByPlayer.get(players[1].id).public_points, 9);
-  eq('并列第 2 名（第二人）赋分 = 9', resByPlayer.get(players[2].id).public_points, 9);
-  eq('并列第 4 名赋分 = 7（名次跳过）', resByPlayer.get(players[3].id).public_points, 7);
-  eq('零票选手赋分 = 0', resByPlayer.get(players[9].id).public_points, 0);
-  eq('原始排名 1 / 2 / 2 / 4 / 4 / 6', [0, 1, 2, 3, 4, 5].map((i) => resByPlayer.get(players[i].id).public_rank), [1, 2, 2, 4, 4, 6]);
-
-  // 期望专业平均分 = 80 + 序号（4 位评审同分）
-  let proOk = true;
+  let pointsOk = true;
   players.forEach((p, i) => {
-    const expectAvg = 80 + i + 1;
-    const actual = resByPlayer.get(p.id).pro_avg;
-    if (Math.abs(actual - expectAvg) > 0.001) {
-      proOk = false;
-      console.log(`     专业平均分不符：${p.name} 期望 ${expectAvg}，实际 ${actual}`);
+    const d = resByPlayer.get(p.id);
+    if (d.public_points !== expectPoints[i] || d.public_rank !== expectRank[i]) {
+      pointsOk = false;
+      console.log(`     赋分/名次不符：${p.name} 期望 ${expectRank[i]}名/${expectPoints[i]}分，实际 ${d.public_rank}名/${d.public_points}分`);
     }
   });
-  check('4 位评审分数的算术平均分正确', proOk);
+  check('名次与赋分符合既定规则', pointsOk);
+  check('零票选手赋 0 分', resByPlayer.get(players.find((p, i) => expectVotes[i] === 0)?.id ?? players[9].id).public_points === 0);
 
-  // 期望赛事得分 = 平均分 + 赋分（≤110）
-  const expectScores = [91, 91, 92, 91, 92, 86, 87, 88, 89, 90];
-  let scoreOk = true;
-  players.forEach((p, i) => {
-    const actual = resByPlayer.get(p.id).final_score;
-    const expect = Math.min(expectScores[i], Number(settings.score_cap));
-    if (Math.abs(actual - expect) > 0.001) {
-      scoreOk = false;
-      console.log(`     得分不符：${p.name} 期望 ${expect}，实际 ${actual}`);
-    }
+  // 期望专业平均分 = 80 + 序号（各评审同分）
+  const proOk = players.every((p, i) => Math.abs(resByPlayer.get(p.id).pro_avg - (80 + i + 1)) < 0.001);
+  check(`${judgeCountCfg} 位评审分数的算术平均分正确`, proOk);
+
+  // 期望赛事得分 = 平均分 + 赋分（不超过上限）
+  const cap = Number(settings.score_cap);
+  const scoreOk = players.every((p, i) => {
+    const expect = Math.min(80 + i + 1 + expectPoints[i], cap);
+    return Math.abs(resByPlayer.get(p.id).final_score - expect) < 0.001;
   });
-  check('小组赛得分 = 专业平均分 + 大众赋分（上限 110）', scoreOk);
-  eq('有效评审席数量 = 4', rows[0].pro_judges, 4);
+  check(`小组赛得分 = 专业平均分 + 大众赋分（上限 ${cap}）`, scoreOk);
+  eq(`有效评审席数量 = ${judgeCountCfg}`, rows[0].pro_judges, judgeCountCfg);
 
   // 个人赛尚未投票 → 得分应为专业均分 0 + 赋分 0 = 0
   const indRows = db.prepare("SELECT * FROM results WHERE competition='individual'").all();
   check('个人赛数据与小组赛相互隔离（暂为 0 分）', indRows.every((r) => r.public_votes === 0 && r.final_score === 0), JSON.stringify(indRows[0]));
 
-  // 最终总成绩 = 小组赛×0.4 + 个人赛×0.6
+  // 最终总成绩 = 小组赛×权重 + 个人赛×权重
   const finalRows = db.prepare('SELECT * FROM final_results').all();
   const fMap = new Map(finalRows.map((r) => [r.player_id, r]));
+  const WG = Number(settings.weight_group);
+  const WI = Number(settings.weight_individual);
   let finalOk = true;
   players.forEach((p) => {
     const g = resByPlayer.get(p.id).final_score;
-    const expect = Math.round((g * 0.4 + 0 * 0.6) * 100) / 100;
+    const expect = Math.round((g * WG + 0 * WI) * 100) / 100;
     const actual = fMap.get(p.id).total_score;
     if (Math.abs(actual - expect) > 0.001) {
       finalOk = false;
       console.log(`     总成绩不符：${p.name} 期望 ${expect}，实际 ${actual}`);
     }
   });
-  check('最终总成绩 = 小组赛×40% + 个人赛×60%', finalOk);
+  check(`最终总成绩 = 小组赛×${WG} + 个人赛×${WI}`, finalOk);
   // 排名结构不变量：名次升序对应总成绩不增，且第 1 名是总成绩最高者
   const sortedByRank = [...finalRows].sort((a, b) => a.final_rank - b.final_rank);
   const maxTotal = Math.max(...finalRows.map((r) => r.total_score));
@@ -409,18 +421,22 @@ console.log(`  选手 ${players.length} 位，大众密码条 ${pubCodes.length}
   const pvJson = await pv.json();
   check('改前/改后预览接口可用', pv.status === 200 && pvJson.ok === true && Array.isArray(pvJson.rows) && pvJson.rows.length === players.length, JSON.stringify(pvJson).slice(0, 120));
   const afterPreview = db.prepare('SELECT public_votes FROM results WHERE competition=? AND player_id=?').get('group', players[0].id).public_votes;
-  check('预览不写入数据库', afterPreview === 3, `实际票数 ${afterPreview}`);
+  const planVotesForP0 = (PICK >= 3 ? 3 : 2);
+  check('预览不写入数据库', afterPreview === planVotesForP0, `实际票数 ${afterPreview}`);
 }
 
 // 7b. 得分上限（封顶）生效
 {
-  const before = db.prepare("SELECT final_score FROM results WHERE competition='group' AND player_id=?").get(players[2].id).final_score;
-  await admin.post('/manage/settings/save', { score_cap: '90' });
-  const capped = db.prepare("SELECT final_score FROM results WHERE competition='group' AND player_id=?").get(players[2].id).final_score;
-  check('得分上限设为 90 后超限分数被封顶', before > 90 && Math.abs(capped - 90) < 0.001, `before=${before} capped=${capped}`);
-  await admin.post('/manage/settings/save', { score_cap: '110' });
-  const restored = db.prepare("SELECT final_score FROM results WHERE competition='group' AND player_id=?").get(players[2].id).final_score;
-  check('上限恢复为 110 后得分还原', Math.abs(restored - before) < 0.001, `restored=${restored} before=${before}`);
+  const capNow = Number(db.prepare("SELECT value FROM settings WHERE key='score_cap'").get().value);
+  const topRow = db.prepare("SELECT player_id, final_score FROM results WHERE competition='group' ORDER BY final_score DESC LIMIT 1").get();
+  const before = topRow.final_score;
+  const tightCap = Math.max(1, Math.floor(before) - 5); // 比最高分低 5 分，确保触发封顶
+  await admin.post('/manage/settings/save', { score_cap: String(tightCap) });
+  const capped = db.prepare("SELECT final_score FROM results WHERE competition='group' AND player_id=?").get(topRow.player_id).final_score;
+  check(`得分上限设为 ${tightCap} 后超限分数被封顶`, before > tightCap && Math.abs(capped - tightCap) < 0.001, `before=${before} capped=${capped}`);
+  await admin.post('/manage/settings/save', { score_cap: String(capNow) });
+  const restored = db.prepare("SELECT final_score FROM results WHERE competition='group' AND player_id=?").get(topRow.player_id).final_score;
+  check('上限恢复后得分还原', Math.abs(restored - before) < 0.001, `restored=${restored} before=${before}`);
 }
 
 // 8. 作废 / 恢复投票
@@ -679,8 +695,8 @@ console.log(`  选手 ${players.length} 位，大众密码条 ${pubCodes.length}
   const judgeCount = Number(db.prepare("SELECT value FROM settings WHERE key='judge_count'").get().value);
 
   // 构造与现场一致的情形：4 条专业评审密码条被绑到了 5/6/7/8 号评审席
-  const proCodes = db.prepare("SELECT * FROM voting_codes WHERE role='pro' ORDER BY id LIMIT 4").all();
-  check('存在 4 条专业评审密码条用于测试', proCodes.length === 4, `实际 ${proCodes.length}`);
+  const proCodes = db.prepare("SELECT * FROM voting_codes WHERE role='pro' ORDER BY id LIMIT ?").all(judgeCount);
+  check(`存在 ${judgeCount} 条专业评审密码条用于测试`, proCodes.length === judgeCount, `实际 ${proCodes.length}`);
 
   const ts = new Date().toISOString();
   proCodes.forEach((c, i) => {

@@ -99,10 +99,10 @@ export async function buildFullWorkbook({ operator = 'system' } = {}) {
       { header: '姓名', key: 'name', width: 16 },
       { header: `小组赛·大众赋分(满分${settings.topPoints})`, key: 'gp', width: 22 },
       { header: '小组赛·专业评审平均分', key: 'gpro', width: 20 },
-      { header: '小组赛总分(上限110)', key: 'gs', width: 18 },
+      { header: `小组赛总分(上限${settings.scoreCap})`, key: 'gs', width: 18 },
       { header: `个人赛·大众赋分(满分${settings.topPoints})`, key: 'ip', width: 22 },
       { header: '个人赛·专业评审平均分', key: 'ipro', width: 20 },
-      { header: '个人赛总分(上限110)', key: 'is', width: 18 },
+      { header: `个人赛总分(上限${settings.scoreCap})`, key: 'is', width: 18 },
       { header: `最终总成绩 = 小组赛×${settings.weightGroup} + 个人赛×${settings.weightIndividual}`, key: 'total', width: 34 },
       { header: '备注', key: 'note', width: 26 },
     ],
@@ -134,7 +134,7 @@ export async function buildFullWorkbook({ operator = 'system' } = {}) {
   /* -------------------------------------------- 2. 说明与规则 ---- */
   const wsRule = addSheet(wb, '说明与规则', [
     { header: '项目', key: 'item', width: 22 },
-    { header: '规则 / 算法说明', key: 'detail', width: 110 },
+    { header: '规则 / 算法说明', key: 'detail', width: 100 },
   ]);
   const stats = dashboardStats();
   wsRule.addRow({ item: '赛事名称', detail: settings.event_title + (settings.event_subtitle ? ' · ' + settings.event_subtitle : '') });

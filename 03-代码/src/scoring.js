@@ -1,9 +1,11 @@
 /**
  * 计分引擎 —— 纯函数、无副作用、可单元测试。
  *
- * 小组赛 / 个人赛规则完全一致，且各自独立调用本引擎，数据天然隔离：
- *   赛事得分 = 专业评审平均分(0-100) + 大众评审赋分(第1名10分…第10名1分)，上限 110 分
- * 最终总成绩 = 小组赛得分 × 40% + 个人赛得分 × 60%
+ * 小组赛 / 个人赛使用同一套规则，各自独立调用本引擎，数据天然隔离：
+ *   赛事得分 = 专业评审平均分 + 大众评审赋分，上限由配置项控制
+ * 最终总成绩 = 两场得分按配置的权重加权求和
+ *
+ * 具体的选项数、赋分梯度、评审人数、上限、权重均为可配置项，不写死在算法里。
  *
  * 所有中间量（原始票数、原始排名、赋分、每位评审原始打分、有效评审数、平均分、封顶前后分数）
  * 都会随结果一起返回，供后台展示与 Excel「处理过程」导出使用 —— 保证结果可复核。
@@ -59,7 +61,7 @@ export function buildPublicRanking(entries, tieRule = 'best') {
 }
 
 /**
- * 名次 → 大众评审赋分。第 1 名 10 分，第 2 名 9 分 …… 第 10 名 1 分。
+ * 名次 → 大众评审赋分。以 topPoints 为第 1 名的分数，逐名递减 1 分。
  * 未获任何票 → zeroVotePoints（默认 0 分）。
  */
 export function pointsForRank(rank, { topPoints = 10, zeroVotePoints = 0, votes = null } = {}) {
@@ -209,7 +211,7 @@ export const TIE_BREAK_LABEL = {
 };
 
 /**
- * 计算最终总成绩：总成绩 = 小组赛得分 × weightGroup + 个人赛得分 × weightIndividual
+ * 计算最终总成绩：总成绩 = 两场得分分别乘以各自权重后相加
  * @param {Object} input { group, individual, opts:{weightGroup, weightIndividual, decimals, tieBreak} }
  */
 export function computeFinal({ group, individual, players, opts = {} }) {

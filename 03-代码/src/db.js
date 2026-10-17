@@ -175,20 +175,20 @@ export const DEFAULT_SETTINGS = {
   individual_start_at: '',
   individual_end_at: '',
 
-  // 投票规则
-  public_pick_count: '3',
-  top_points: '10',
+  // 投票规则（以下均为示例默认值，实际规则在后台「系统设置」中配置）
+  public_pick_count: '2',
+  top_points: '5',
   zero_vote_points: '0',
   tie_rank_rule: 'best', // 并列取最优名次，后续名次跳过
-  judge_count: '4',
+  judge_count: '3',
   missing_judge_rule: 'submitted', // submitted=按实际提交人数平均 / all=缺评记 0 分后除以总人数
   pro_can_edit: '1',
   auto_recalc: '1',
 
   // 计分与总成绩
-  weight_group: '0.4',
-  weight_individual: '0.6',
-  score_cap: '110',
+  weight_group: '0.5',
+  weight_individual: '0.5',
+  score_cap: '105',
   score_decimals: '2',
   final_tie_break: 'individual', // individual | group | pro_avg
 
@@ -245,13 +245,13 @@ export function getSettings() {
   const raw = getSettingsObject();
   return {
     ...raw,
-    publicPickCount: Number(raw.public_pick_count || 3),
-    topPoints: Number(raw.top_points || 10),
+    publicPickCount: Number(raw.public_pick_count || 2),
+    topPoints: Number(raw.top_points || 5),
     zeroVotePoints: Number(raw.zero_vote_points || 0),
-    judgeCount: Number(raw.judge_count || 4),
-    weightGroup: Number(raw.weight_group || 0.4),
-    weightIndividual: Number(raw.weight_individual || 0.6),
-    scoreCap: Number(raw.score_cap || 110),
+    judgeCount: Number(raw.judge_count || 3),
+    weightGroup: Number(raw.weight_group || 0.5),
+    weightIndividual: Number(raw.weight_individual || 0.5),
+    scoreCap: Number(raw.score_cap || 105),
     decimals: Number(raw.score_decimals || 2),
     loginRateMax: Number(raw.login_rate_max || 5000),
     loginRateWindowMs: Number(raw.login_rate_window_minutes || 5) * 60 * 1000,
