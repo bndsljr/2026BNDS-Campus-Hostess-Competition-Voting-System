@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="<%= settings.theme_color || '#1b3a6b' %>" />
+<meta name="robots" content="noindex, nofollow" />
+<title><%= (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : (settings.event_title || '投票系统') %></title>
+<link rel="stylesheet" href="/assets/css/app.css?v=<%= (typeof assetVersion !== 'undefined' && assetVersion) ? assetVersion : '1' %>" />
+<style>
+  :root {
+    --brand: <%= settings.theme_color || '#1b3a6b' %>;
+    --accent: <%= settings.accent_color || '#c8a45c' %>;
+  }
+</style>
+</head>
+<body>

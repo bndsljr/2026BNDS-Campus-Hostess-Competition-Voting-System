@@ -1,0 +1,67 @@
+<%- include('partials/head', { settings, pageTitle: '排名公示' }) %>
+
+<div class="topbar">
+  <img class="brand-logo" src="/assets/img/logo-sm.png" alt="BNDS TV" />
+  <div>
+    <div class="brand-title"><%= settings.event_title %></div>
+    <div class="brand-sub">排名公示榜</div>
+  </div>
+  <div class="spacer"></div>
+  <% if (user && user.type === 'admin') { %><a href="/manage">返回后台</a><% } %>
+</div>
+
+<div class="page wide">
+  <% if (typeof boardPreview !== 'undefined' && boardPreview) { %>
+    <div class="flash flash-info">
+      这是后台预览（投屏可用本页）。
+      <% if (settings.boardPublic) { %>
+        公众入口 <code>/board</code> 当前<b>已开放</b>。
+      <% } else { %>
+        公众入口 <code>/board</code> 当前<b>未开放</b>，外部访问会返回 403；如需开放请到「系统设置」勾选。
+      <% } %>
+    </div>
+  <% } %>
+  <div class="tabs">
+    <a href="<%= boardBase %>?c=final" class="<%= which === 'final' ? 'active' : '' %>">最终总排名</a>
+    <a href="<%= boardBase %>?c=group" class="<%= which === 'group' ? 'active' : '' %>">小组赛</a>
+    <a href="<%= boardBase %>?c=individual" class="<%= which === 'individual' ? 'active' : '' %>">个人赛</a>
+  </div>
+
+  <% var list = which === 'final' ? final : which === 'group' ? group : individual; %>
+
+  <% if (!list.length) { %>
+    <div class="card empty"><div class="big">📋</div>暂无数据</div>
+  <% } else { %>
+    <div class="rank-list">
+      <% list.forEach(function (r, idx) { %>
+        <% var rank = which === 'final' ? r.final_rank : r.public_rank; %>
+        <div class="rank-item <%= rank === 1 ? 'top1' : rank === 2 ? 'top2' : rank === 3 ? 'top3' : '' %>">
+          <div class="no"><%= rank == null ? "—" : rank %></div>
+          <% if (r.photo) { %>
+            <img class="rank-photo" src="/uploads/<%= r.photo %>" alt="<%= r.name %>" loading="lazy" />
+          <% } %>
+          <div class="rname">
+            <%= r.name %>
+            <span class="rsub">
+              NO. <%= String(r.no).padStart(2, '0') %>
+              <% if (which === 'final') { %>
+                · 小组赛 <%= r.group_score %> × <%= settings.weight_group %> + 个人赛 <%= r.individual_score %> × <%= settings.weight_individual %>
+              <% } else { %>
+                · 大众票 <%= r.public_votes %>（赋分 <%= r.public_points %>）+ 专业均分 <%= r.pro_avg %>
+              <% } %>
+            </span>
+          </div>
+          <div class="rscore">
+            <%= which === 'final' ? r.total_score : r.final_score %>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+
+  <p class="center muted tiny mt-3">
+    数据更新时间：<%= fmtLocal(serverNowIso) %>
+  </p>
+</div>
+
+<%- include('partials/foot') %>

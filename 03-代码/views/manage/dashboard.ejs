@@ -1,0 +1,162 @@
+<%- include('partials/shell-top', { settings, pageTitle: '仪表盘 · 后台管理', nav, user, fmtLocal, serverNowIso, flash }) %>
+
+<div class="main-head">
+  <div>
+    <h1>仪表盘</h1>
+    <div class="sub">实时概览 · 服务器时间 <%= fmtLocal(serverNowIso) %></div>
+  </div>
+  <div class="btn-group">
+    <form method="post" action="/manage/recalc" data-ajax data-refresh="#dashboardStats" style="display:inline">
+      <input type="hidden" name="back" value="/manage" />
+      <button class="btn btn-sm" type="submit">🔄 手动重算排名</button>
+    </form>
+    <a class="btn btn-sm btn-primary" href="/manage/export">📥 导出数据</a>
+  </div>
+</div>
+
+<!-- 赛程状态 -->
+<div class="grid cols-2 mb-2">
+  <% [['group', '小组赛', groupStatus], ['individual', '个人赛', individualStatus]].forEach(function (item) { %>
+    <% var key = item[0], name = item[1], st = item[2]; %>
+    <div class="card tight">
+      <div class="row between">
+        <div>
+          <h3 style="margin-bottom:2px"><%= name %></h3>
+          <div class="small muted">
+            <% if (st.open) { %>
+              进行中<%= st.endAt ? ' · ' + humanRemain(st.endAt, now) + '后截止' : ' · 未设截止时间' %>
+            <% } else { %>
+              <%= st.label %>
+              <% if (st.reason === 'pending' && st.startAt) { %> · 开始于 <%= fmtLocal(st.startAt) %><% } %>
+              <% if (st.endAt) { %> · 截止于 <%= fmtLocal(st.endAt) %><% } %>
+            <% } %>
+          </div>
+        </div>
+        <span class="badge <%= st.open ? 'badge-ok' : st.reason === 'ended' ? 'badge-err' : 'badge-warn' %>"><%= st.label %></span>
+      </div>
+      <div class="btn-group mt-2">
+        <form method="post" action="/manage/schedule/toggle" data-ajax data-refresh="#dashboardStats">
+          <input type="hidden" name="competition" value="<%= key %>" />
+          <input type="hidden" name="action" value="open" />
+          <button class="btn btn-sm btn-ok" type="submit" <%= st.open ? 'disabled' : '' %>>开启</button>
+        </form>
+        <form method="post" action="/manage/schedule/toggle" data-ajax data-refresh="#dashboardStats" data-confirm="确认截止<%= name %>投票？截止后选手将无法继续投票，系统会自动完成统计。">
+          <input type="hidden" name="competition" value="<%= key %>" />
+          <input type="hidden" name="action" value="close" />
+          <button class="btn btn-sm btn-danger" type="submit">截止</button>
+        </form>
+        <form method="post" action="/manage/schedule/toggle" data-ajax data-refresh="#dashboardStats" data-confirm="确认重新开启<%= name %>投票并清除截止时间？">
+          <input type="hidden" name="competition" value="<%= key %>" />
+          <input type="hidden" name="action" value="reopen" />
+          <button class="btn btn-sm" type="submit">重新开启</button>
+        </form>
+        <a class="btn btn-sm" href="/manage/schedule">更多设置</a>
+      </div>
+    </div>
+  <% }) %>
+</div>
+
+<!-- 统计 -->
+<div class="card mb-2" id="dashboardStats">
+  <div class="card-title"><h3>数据统计</h3><span class="badge badge-brand">实时</span></div>
+  <div class="stat-grid">
+    <div class="stat">
+      <div class="label">参赛选手（启用中）</div>
+      <div class="value"><%= stats.playerCount %><span class="unit">人</span></div>
+    </div>
+    <div class="stat">
+      <div class="label">大众评审密码条</div>
+      <div class="value"><%= stats.codeStats.public ? stats.codeStats.public.enabled : 0 %><span class="unit">/ <%= stats.codeStats.public ? stats.codeStats.public.total : 0 %></span></div>
+    </div>
+    <div class="stat">
+      <div class="label">专业评审密码条</div>
+      <div class="value"><%= stats.codeStats.pro ? stats.codeStats.pro.enabled : 0 %><span class="unit">/ <%= stats.codeStats.pro ? stats.codeStats.pro.total : 0 %></span></div>
+    </div>
+    <div class="stat">
+      <div class="label">小组赛·有效投票</div>
+      <div class="value"><%= stats.group.votes %><span class="unit">条</span></div>
+    </div>
+    <div class="stat">
+      <div class="label">个人赛·有效投票</div>
+      <div class="value"><%= stats.individual.votes %><span class="unit">条</span></div>
+    </div>
+    <div class="stat">
+      <div class="label">小组赛·评审提交</div>
+      <div class="value"><%= stats.group.judgeSlots %><span class="unit">/ <%= stats.settings.judgeCount %></span></div>
+    </div>
+    <div class="stat">
+      <div class="label">个人赛·评审提交</div>
+      <div class="value"><%= stats.individual.judgeSlots %><span class="unit">/ <%= stats.settings.judgeCount %></span></div>
+    </div>
+    <div class="stat">
+      <div class="label">最近重算时间</div>
+      <div class="value" style="font-size:.95rem;font-weight:600"><%= stats.lastRecalc ? fmtLocal(stats.lastRecalc) : '尚未重算' %></div>
+    </div>
+  </div>
+</div>
+
+<!-- 排名概览 -->
+<div class="grid cols-2 mb-2">
+  <div class="card">
+    <div class="card-title">
+      <h3>最终总排名</h3>
+      <a class="btn btn-sm" href="/manage/results">查看明细</a>
+    </div>
+    <% if (!final.length) { %>
+      <div class="empty">暂无数据</div>
+    <% } else { %>
+      <div class="table-wrap">
+        <table class="table compact">
+          <thead><tr><th>名次</th><th>姓名</th><th class="num">小组赛</th><th class="num">个人赛</th><th class="num">总成绩</th></tr></thead>
+          <tbody>
+            <% final.forEach(function (r) { %>
+              <tr>
+                <td><b><%= r.final_rank == null ? "—" : r.final_rank %></b></td>
+                <td><%= r.name %></td>
+                <td class="num"><%= r.group_score %></td>
+                <td class="num"><%= r.individual_score %></td>
+                <td class="num"><b><%= r.total_score %></b></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><h3>最近操作</h3><a class="btn btn-sm" href="/manage/audit">全部日志</a></div>
+    <% if (!recentLogs.length) { %>
+      <div class="empty">暂无操作记录</div>
+    <% } else { %>
+      <ul class="list-plain">
+        <% recentLogs.forEach(function (l) { %>
+          <li>
+            <span class="muted tiny nowrap"><%= fmtLocal(l.at) %></span>
+            <span class="badge <%= l.actor_type === 'admin' ? 'badge-brand' : 'badge' %>"><%= l.actor || '-' %></span>
+            <span class="small" style="flex:1"><%= l.note || l.action %></span>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+  </div>
+</div>
+
+<!-- 快速上手 -->
+<div class="card">
+  <div class="card-title"><h3>快速上手</h3></div>
+  <div class="grid cols-2 small">
+    <div>
+      <p class="mb-1"><b>1. 选手信息</b>：在<a href="/manage/players">选手管理</a>中录入姓名、上传照片（10 位选手）。</p>
+      <p class="mb-1"><b>2. 密码条</b>：在<a href="/manage/codes">密码条管理</a>中按实际人数生成并打印发放；专业评审密码条需绑定评审席 1-<%= stats.settings.judgeCount %>。</p>
+      <p class="mb-0"><b>3. 开启投票</b>：在<a href="/manage/schedule">赛程与开关</a>中设置开始/截止时间并开启。</p>
+    </div>
+    <div>
+      <p class="mb-1"><b>4. 两个入口</b>：小组赛 <code>/vote/group</code>、个人赛 <code>/vote/individual</code>，可分别生成二维码。</p>
+      <p class="mb-1"><b>5. 手动赋分</b>：现场补录、加票、修改分数走<a href="/manage/manual">手动赋分</a>页，支持改前/改后预览。</p>
+      <p class="mb-0"><b>6. 导出归档</b>：<a href="/manage/export">数据导出</a>可一键导出含全部原始数据与计分过程的 Excel。</p>
+    </div>
+  </div>
+</div>
+
+<%- include('partials/shell-bottom') %>

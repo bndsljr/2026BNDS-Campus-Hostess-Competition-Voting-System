@@ -1,0 +1,25 @@
+<%- include('partials/head', { settings, pageTitle: '已退出' }) %>
+
+<div class="topbar">
+  <img class="brand-logo" src="/assets/img/logo-sm.png" alt="BNDS TV" />
+  <div>
+    <div class="brand-title"><%= settings.event_title %></div>
+    <div class="brand-sub"><%= settings.event_subtitle || '投票系统' %></div>
+  </div>
+  <div class="spacer"></div>
+</div>
+
+<div class="center-page">
+  <div style="width:100%;max-width:430px">
+    <div class="card center">
+      <div style="font-size:2.6rem;line-height:1">👋</div>
+      <h1 style="margin-bottom:8px">已退出登录</h1>
+      <p class="muted mb-0">
+        您的投票记录已保存。<br />
+        如需继续，请使用现场工作人员提供的入口链接或扫描现场二维码重新进入。
+      </p>
+    </div>
+  </div>
+</div>
+
+<%- include('partials/foot') %>

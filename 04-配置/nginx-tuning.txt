@@ -1,0 +1,4 @@
+worker_processes auto;
+worker_rlimit_nofile 65535;
+	worker_connections 4096;
+	multi_accept on;

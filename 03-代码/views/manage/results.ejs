@@ -1,0 +1,114 @@
+<%- include('partials/shell-top', { settings, pageTitle: '结果与排名 · 后台管理', nav, user, fmtLocal, serverNowIso, flash }) %>
+
+<div class="main-head">
+  <div>
+    <h1>结果与排名</h1>
+    <div class="sub">
+      最终总成绩 = 小组赛得分 × <%= settings.weight_group %> + 个人赛得分 × <%= settings.weight_individual %>；并列时按「<%= tieLabel %>」决胜
+    </div>
+  </div>
+  <div class="btn-group">
+    <form method="post" action="/manage/recalc" data-ajax data-refresh="#resultsTables">
+      <input type="hidden" name="back" value="/manage/results" />
+      <button class="btn btn-sm" type="submit">🔄 强制重算</button>
+    </form>
+    <a class="btn btn-sm" href="/manage/board?c=final" target="_blank">🖥️ 公示榜预览</a>
+    <a class="btn btn-sm btn-primary" href="/manage/export">📥 导出 Excel</a>
+  </div>
+</div>
+
+<div id="resultsTables">
+<div class="card mb-2">
+  <div class="card-title"><h3>🏆 最终总排名</h3><span class="badge badge-accent">总成绩 = 小组赛×<%= settings.weight_group %> + 个人赛×<%= settings.weight_individual %></span></div>
+  <% if (!final.length) { %>
+    <div class="empty">暂无数据</div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>排名</th><th>选手</th>
+            <th class="num">小组赛·大众赋分</th><th class="num">小组赛·专业均分</th><th class="num">小组赛总分</th>
+            <th class="num">个人赛·大众赋分</th><th class="num">个人赛·专业均分</th><th class="num">个人赛总分</th>
+            <th class="num">总成绩</th><th>备注</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% final.forEach(function (r) { %>
+            <tr>
+              <td><b style="font-size:1.05rem"><%= r.final_rank == null ? "—" : r.final_rank %></b></td>
+              <td><%= r.no %> · <b><%= r.name %></b></td>
+              <td class="num"><%= r.group_public_points %></td>
+              <td class="num"><%= r.group_pro_avg %></td>
+              <td class="num"><%= r.group_score %></td>
+              <td class="num"><%= r.individual_public_points %></td>
+              <td class="num"><%= r.individual_pro_avg %></td>
+              <td class="num"><%= r.individual_score %></td>
+              <td class="num"><b style="color:var(--brand)"><%= r.total_score %></b></td>
+              <td class="tiny muted"><%= r.tie_note || '' %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+
+<div class="grid cols-2">
+  <div class="card">
+    <div class="card-title"><h3>小组赛明细</h3><span class="badge badge-brand">上限 <%= settings.score_cap %> 分</span></div>
+    <div class="table-wrap">
+      <table class="table compact">
+        <thead><tr><th>选手</th><th class="num">票数</th><th class="num">排名</th><th class="num">赋分</th><th class="num">专业均分</th><th class="num">总分</th></tr></thead>
+        <tbody>
+          <% group.forEach(function (r) { %>
+            <tr>
+              <td><%= r.no %> · <%= r.name %></td>
+              <td class="num"><%= r.public_votes %></td>
+              <td class="num"><%= r.public_rank || '-' %></td>
+              <td class="num"><%= r.public_points %></td>
+              <td class="num"><%= r.pro_avg %></td>
+              <td class="num"><b><%= r.final_score %></b></td>
+            </tr>
+          <% }) %>
+          <% if (!group.length) { %><tr><td colspan="6" class="empty">暂无数据</td></tr><% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><h3>个人赛明细</h3><span class="badge badge-brand">上限 <%= settings.score_cap %> 分</span></div>
+    <div class="table-wrap">
+      <table class="table compact">
+        <thead><tr><th>选手</th><th class="num">票数</th><th class="num">排名</th><th class="num">赋分</th><th class="num">专业均分</th><th class="num">总分</th></tr></thead>
+        <tbody>
+          <% individual.forEach(function (r) { %>
+            <tr>
+              <td><%= r.no %> · <%= r.name %></td>
+              <td class="num"><%= r.public_votes %></td>
+              <td class="num"><%= r.public_rank || '-' %></td>
+              <td class="num"><%= r.public_points %></td>
+              <td class="num"><%= r.pro_avg %></td>
+              <td class="num"><b><%= r.final_score %></b></td>
+            </tr>
+          <% }) %>
+          <% if (!individual.length) { %><tr><td colspan="6" class="empty">暂无数据</td></tr><% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<div class="card mt-2">
+  <div class="card-title"><h3>当前生效的计分规则</h3><a class="btn btn-sm" href="/manage/settings">修改规则</a></div>
+  <ul class="list-plain">
+    <% rules.forEach(function (r) { %>
+      <li><b style="flex:0 0 160px"><%= r.item %></b><span class="muted"><%= r.detail %></span></li>
+    <% }) %>
+  </ul>
+</div>
+
+<%- include('partials/shell-bottom') %>

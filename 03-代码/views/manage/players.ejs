@@ -1,0 +1,120 @@
+<%- include('partials/shell-top', { settings, pageTitle: '选手管理 · 后台管理', nav, user, fmtLocal, serverNowIso, flash }) %>
+
+<div class="main-head">
+  <div>
+    <h1>选手管理</h1>
+    <div class="sub">共 <%= players.length %> 位选手，其中启用 <%= players.filter(function(p){return p.active;}).length %> 位。停用的选手不会出现在投票页与排名中。</div>
+  </div>
+</div>
+
+<div class="grid cols-2" id="playersList">
+  <% players.forEach(function (p) { %>
+    <div class="card tight">
+      <div class="row" style="align-items:flex-start">
+        <div style="flex:0 0 84px">
+          <% if (p.photo) { %>
+            <img id="photo-<%= p.id %>" src="/uploads/<%= p.photo %>" alt="<%= p.name %>" style="width:84px;height:112px;object-fit:cover;border-radius:10px;background:#eef2f9" />
+          <% } else { %>
+            <img id="photo-<%= p.id %>" src="" alt="" style="display:none;width:84px;height:112px;object-fit:cover;border-radius:10px" />
+            <div style="width:84px;height:112px;border-radius:10px;background:#eef2f9;display:flex;align-items:center;justify-content:center;font-size:1.8rem;font-weight:700;color:#9fb0cc">
+              <%= p.name.slice(0, 1) %>
+            </div>
+          <% } %>
+        </div>
+
+        <div style="flex:1;min-width:0">
+          <form method="post" action="/manage/players/save" data-ajax data-refresh="#playersList">
+            <input type="hidden" name="id" value="<%= p.id %>" />
+            <div class="row" style="gap:8px">
+              <div style="width:74px">
+                <label>序号</label>
+                <input type="number" name="no" value="<%= p.no %>" min="0" />
+              </div>
+              <div style="flex:1;min-width:110px">
+                <label>姓名</label>
+                <input type="text" name="name" value="<%= p.name %>" required />
+              </div>
+            </div>
+            <div class="row mt-1" style="gap:8px">
+              <div style="flex:1;min-width:110px">
+                <label>标签（可选）</label>
+                <input type="text" name="tag" value="<%= p.tag || '' %>" placeholder="如：播音组" />
+              </div>
+              <div style="flex:1;min-width:110px">
+                <label>排序</label>
+                <input type="number" name="sort_order" value="<%= p.sort_order %>" min="0" />
+              </div>
+            </div>
+            <div class="mt-1">
+              <label>简介（可选）</label>
+              <input type="text" name="intro" value="<%= p.intro || '' %>" placeholder="一句话介绍" />
+            </div>
+            <div class="row between mt-1">
+              <label class="checkline">
+                <input type="checkbox" name="active" <%= p.active ? 'checked' : '' %> />
+                参赛中
+              </label>
+              <div class="btn-group">
+                <button class="btn btn-sm btn-primary" type="submit">保存</button>
+              </div>
+            </div>
+          </form>
+
+          <div class="row between mt-1" style="gap:8px">
+            <form method="post" action="/manage/players/photo" enctype="multipart/form-data" data-ajax data-refresh="#playersList" class="row" style="gap:6px;flex:1">
+              <input type="hidden" name="playerId" value="<%= p.id %>" />
+              <input type="file" name="photo" accept="image/*" data-preview="photo-<%= p.id %>" style="font-size:.8rem;padding:5px" required />
+              <button class="btn btn-sm" type="submit">上传照片</button>
+            </form>
+            <% if (p.photo) { %>
+              <form method="post" action="/manage/players/photo/delete" data-ajax data-refresh="#playersList" data-confirm="确认移除该选手的照片？">
+                <input type="hidden" name="id" value="<%= p.id %>" />
+                <button class="btn btn-sm btn-danger" type="submit">移除</button>
+              </form>
+            <% } %>
+            <form method="post" action="/manage/players/delete" data-ajax data-refresh="#playersList" data-confirm="确认删除选手「<%= p.name %>」？已有投票或打分的选手无法删除，请改用「停用」。">
+              <input type="hidden" name="id" value="<%= p.id %>" />
+              <button class="btn btn-sm btn-danger" type="submit">删除</button>
+            </form>
+          </div>
+        </div>
+      </div>
+      <% if (!p.active) { %>
+        <div class="mt-1"><span class="badge badge-warn">已停用</span> <span class="tiny muted">不计入投票与排名</span></div>
+      <% } %>
+    </div>
+  <% }) %>
+</div>
+
+<div class="card mt-3">
+  <div class="card-title"><h3>新增选手</h3></div>
+  <form method="post" action="/manage/players/save" data-ajax data-refresh="#playersList" data-reset-on-success="1">
+    <div class="form-grid">
+      <div>
+        <label>序号</label>
+        <input type="number" name="no" value="<%= players.length + 1 %>" min="0" />
+      </div>
+      <div>
+        <label>姓名</label>
+        <input type="text" name="name" placeholder="选手姓名" required />
+      </div>
+      <div>
+        <label>标签（可选）</label>
+        <input type="text" name="tag" placeholder="如：播音组" />
+      </div>
+    </div>
+    <div class="field mt-2">
+      <label>简介（可选）</label>
+      <input type="text" name="intro" placeholder="一句话介绍" />
+    </div>
+    <label class="checkline mb-2"><input type="checkbox" name="active" checked /> 参赛中</label>
+    <button class="btn btn-primary" type="submit">添加选手</button>
+    <span class="muted small">新增后请在卡片中上传照片</span>
+  </form>
+</div>
+
+<p class="muted small mt-2">
+  提示：选手数量变化后系统会自动重新计算排名；若有选手退出比赛，建议使用「停用」而不是删除，历史投票数据会保留。
+</p>
+
+<%- include('partials/shell-bottom') %>

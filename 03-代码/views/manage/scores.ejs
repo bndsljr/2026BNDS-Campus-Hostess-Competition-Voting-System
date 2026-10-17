@@ -1,0 +1,148 @@
+<%- include('partials/shell-top', { settings, pageTitle: '打分数数据 · 后台管理', nav, user, fmtLocal, serverNowIso, flash }) %>
+
+<div class="main-head">
+  <div>
+    <h1>专业评审打分数据</h1>
+    <div class="sub">
+      共 <%= judgeCount %> 位专业评审（评审席 1-<%= judgeCount %>），每位对每位选手打 0-100 分；平均分规则：<%= settings.missing_judge_rule === 'all' ? '分数之和 ÷ ' + judgeCount + '（缺评按 0 分计入）' : '已提交评审分数之和 ÷ 实际提交人数' %>
+    </div>
+  </div>
+  <div class="btn-group">
+    <a class="btn btn-sm" href="/manage/manual?c=<%= competition %>">✍️ 手动赋分页</a>
+    <a class="btn btn-sm btn-primary" href="/manage/export">📥 导出</a>
+  </div>
+</div>
+
+<% if (outOfRangeCodes.length || outOfRangeScores.length) { %>
+  <div class="flash flash-error" style="font-size:.95rem">
+    ⚠️ <b>检测到「评审席超出范围」的数据，这些分数不会计入成绩</b>
+    （当前有效评审席为 <b>1 - <%= judgeCount %></b>）：
+    <div style="margin-top:6px">
+      <% if (outOfRangeCodes.length) { %>
+        密码条：<%= outOfRangeCodes.map(function (c) { return (c.label || c.code) + '（评审席' + c.judge_slot + '）'; }).join('、') %><br />
+      <% } %>
+      <% if (outOfRangeScores.length) { %>
+        已提交打分：<%= outOfRangeScores.map(function (r) { return '评审席' + r.judge_slot + '（' + r.c + ' 格）'; }).join('、') %>
+      <% } %>
+    </div>
+    <div class="row mt-1" style="gap:10px;align-items:center">
+      <form method="post" action="/manage/scores/repair" data-ajax data-refresh="#mainContent">
+        <button class="btn btn-sm btn-primary" type="submit">🔧 一键修正评审席（把密码条与已有分数搬回有效范围）</button>
+      </form>
+      <span class="tiny">也可以到 <a href="/manage/codes">密码条管理</a> 手动改绑定，或到 <a href="/manage/settings">系统设置</a> 调整「专业评审席位数」</span>
+    </div>
+  </div>
+<% } %>
+
+<div class="tabs">
+  <a href="/manage/scores?c=group" class="<%= competition === 'group' ? 'active' : '' %>">小组赛</a>
+  <a href="/manage/scores?c=individual" class="<%= competition === 'individual' ? 'active' : '' %>">个人赛</a>
+</div>
+
+<form method="post" action="/manage/scores/save" data-ajax data-refresh="#scoresGrid,#scoreDetails">
+  <input type="hidden" name="competition" value="<%= competition %>" />
+
+  <div class="card" id="scoresGrid">
+    <div class="card-title">
+      <h3><%= competitionName %>·打分表</h3>
+      <span class="tiny muted">可直接修改任意格子后保存；留空表示不修改该格</span>
+    </div>
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>选手</th>
+            <% for (var s = 1; s <= judgeCount; s++) { %><th class="num">评审<%= s %></th><% } %>
+            <th class="num">有效评审</th>
+            <th class="num">平均分</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% players.forEach(function (p) { %>
+            <% var filled = 0, sum = 0; %>
+            <tr>
+              <td><b><%= p.no %></b> · <%= p.name %><%= p.active ? '' : ' （已停用）' %></td>
+              <% for (var s = 1; s <= judgeCount; s++) { %>
+                <% var cell = grid.get(s + ':' + p.id); %>
+                <% if (cell) { filled++; sum += Number(cell.score); } %>
+                <td class="num">
+                  <input
+                    type="number"
+                    name="s_<%= s %>_<%= p.id %>"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    style="width:82px;text-align:center"
+                    placeholder="<%= cell ? '' : '未评' %>"
+                    title="<%= cell ? (cell.source === 'manual' ? '手动录入' : '评审本人提交') : '尚未打分' %>"
+                  />
+                  <% if (cell) { %>
+                    <div class="tiny" style="color:<%= cell.source === 'manual' ? 'var(--warn)' : 'var(--muted)' %>">
+                      <%= cell.score %><%= cell.source === 'manual' ? '（手动）' : '' %>
+                    </div>
+                  <% } %>
+                </td>
+              <% } %>
+              <% var divisor = settings.missing_judge_rule === 'all' ? judgeCount : filled; %>
+              <td class="num"><%= filled %> / <%= judgeCount %></td>
+              <td class="num"><b><%= divisor ? Math.round((sum / divisor) * 100) / 100 : 0 %></b></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="row between mt-2">
+      <div class="small muted">
+        提示：表格中的灰色数字表示当前已保存的分数；直接在上方输入框填入新值即可覆盖，保存后自动重算排名。
+      </div>
+      <button class="btn btn-primary" type="submit">保存全部修改</button>
+    </div>
+  </div>
+</form>
+
+<div class="card mt-2" id="scoreDetails">
+  <div class="card-title">
+    <h3>已有打分明细（<%= grid.size %> 格）</h3>
+    <span class="tiny muted">如需将某格恢复为「未评」，请使用每行的「清空」按钮</span>
+  </div>
+  <% if (!grid.size) { %>
+    <div class="empty"><div class="big">💯</div>暂无打分数据</div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table class="table compact">
+        <thead>
+          <tr><th>评审席</th><th>选手</th><th class="num">分数</th><th>来源</th><th>提交时间</th><th>操作</th></tr>
+        </thead>
+        <tbody>
+          <% Array.from(grid.values()).sort(function(a,b){ return a.judge_slot - b.judge_slot || a.player_id - b.player_id; }).forEach(function (row) { %>
+            <% var p = players.find(function (x) { return x.id === row.player_id; }); %>
+            <% var code = row.code_id ? codeMap.get(row.code_id) : null; %>
+            <tr>
+              <td>评审 <%= row.judge_slot %><%= code ? '（' + (code.label || code.code) + '）' : '' %></td>
+              <td><%= p ? (p.no + ' · ' + p.name) : '已删除选手' %></td>
+              <td class="num"><b><%= row.score %></b></td>
+              <td>
+                <span class="badge <%= row.source === 'manual' ? 'badge-warn' : 'badge-ok' %>">
+                  <%= row.source === 'manual' ? '手动录入' : '评审提交' %>
+                </span>
+                <% if (row.operator) { %><span class="tiny muted">by <%= row.operator %></span><% } %>
+              </td>
+              <td class="tiny muted"><%= fmtLocal(row.updated_at, false) %></td>
+              <td>
+                <form method="post" action="/manage/scores/clear" data-ajax data-refresh="#scoresGrid,#scoreDetails" data-confirm="确认将该格分数清空（视为该评审未给该选手打分）？">
+                  <input type="hidden" name="competition" value="<%= competition %>" />
+                  <input type="hidden" name="judgeSlot" value="<%= row.judge_slot %>" />
+                  <input type="hidden" name="playerId" value="<%= row.player_id %>" />
+                  <button class="btn btn-sm btn-danger" type="submit">清空</button>
+                </form>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+
+<%- include('partials/shell-bottom') %>

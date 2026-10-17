@@ -1,0 +1,5 @@
+# 2026 主持人大赛投票系统：每天 02:00 自动备份数据库与选手照片（保留最近 14 份）
+# 注意：cron 的 PATH 不含 /usr/sbin，必须使用绝对路径调用 runuser
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+0 2 * * * root /usr/sbin/runuser -u hostvote -- /usr/local/bin/node /opt/hostvote/app/scripts/backup.mjs >> /opt/hostvote/logs/backup.log 2>&1

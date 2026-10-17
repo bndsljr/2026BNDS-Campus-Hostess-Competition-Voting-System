@@ -1,0 +1,83 @@
+<%- include('partials/shell-top', { settings, pageTitle: '数据导出 · 后台管理', nav, user, fmtLocal, serverNowIso, flash }) %>
+
+<div class="main-head">
+  <div>
+    <h1>数据导出</h1>
+    <div class="sub">导出的 Excel 同时包含「最终结论」与「完整处理过程」，可据此逐项复核每一个分数。</div>
+  </div>
+</div>
+
+<div class="grid cols-2">
+  <div class="card">
+    <div class="card-title"><h3>① 全量数据与计分过程</h3><span class="badge badge-accent">推荐归档</span></div>
+    <p class="muted small">
+      包含 11 个工作表：最终总排名、说明与规则、小组赛计分过程、个人赛计分过程、总成绩计算过程、
+      大众投票明细（原始记录）、专业评审打分明细、密码条清单、选手名单、操作日志、统计摘要。
+    </p>
+    <ul class="tiny muted" style="padding-left:18px">
+      <li>每条投票记录：谁的密码条、几点几分、IP、浏览器、投给谁、是否被修改过</li>
+      <li>每一格打分：来源是评审本人提交还是管理员手动录入、录入时间</li>
+      <li>每一位选手：原始票数 → 原始排名 → 赋分 → 各评审打分 → 平均分 → 封顶前后得分</li>
+      <li>全部人工操作的前后快照</li>
+    </ul>
+    <a class="btn btn-primary btn-block" href="/manage/export/full">📥 导出全量数据（.xlsx）</a>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><h3>② 仅排名表</h3><span class="badge">现场公布用</span></div>
+    <p class="muted small">
+      只有两列：<b>最终排名</b>与<b>姓名</b>。适合现场宣读、投屏或打印张贴，不含任何其他数据。
+    </p>
+    <div class="table-wrap mt-2">
+      <table class="table compact">
+        <thead><tr><th>最终排名</th><th>姓名</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td class="muted">…</td></tr>
+          <tr><td>2</td><td class="muted">…</td></tr>
+          <tr><td colspan="2" class="tiny muted">共 <%= stats.playerCount %> 位选手</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <a class="btn btn-accent btn-block mt-2" href="/manage/export/rank">📥 导出仅排名表（.xlsx）</a>
+  </div>
+</div>
+
+<div class="grid cols-2 mt-2">
+  <div class="card">
+    <div class="card-title"><h3>③ 密码条清单</h3></div>
+    <p class="muted small">导出全部密码条及其投票状态，便于核对发放与回收情况。</p>
+    <div class="btn-group">
+      <a class="btn" href="/manage/codes/export?role=public">大众评审密码条</a>
+      <a class="btn" href="/manage/codes/export?role=pro">专业评审密码条</a>
+      <a class="btn" href="/manage/codes/export">全部密码条</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><h3>④ 数据现状速览</h3></div>
+    <div class="small">
+      <div class="row between" style="padding:4px 0"><span class="muted">小组赛有效投票</span><b><%= stats.group.votes %> 条</b></div>
+      <div class="row between" style="padding:4px 0"><span class="muted">个人赛有效投票</span><b><%= stats.individual.votes %> 条</b></div>
+      <div class="row between" style="padding:4px 0"><span class="muted">小组赛评审提交</span><b><%= stats.group.judgeSlots %> / <%= stats.settings.judgeCount %></b></div>
+      <div class="row between" style="padding:4px 0"><span class="muted">个人赛评审提交</span><b><%= stats.individual.judgeSlots %> / <%= stats.settings.judgeCount %></b></div>
+      <div class="row between" style="padding:4px 0"><span class="muted">已作废投票记录</span><b><%= stats.group.invalid + stats.individual.invalid %> 条</b></div>
+      <div class="row between" style="padding:4px 0"><span class="muted">最近重算</span><b><%= stats.lastRecalc ? fmtLocal(stats.lastRecalc, false) : '尚未重算' %></b></div>
+    </div>
+    <a class="btn btn-sm mt-2" href="/manage/recalc" onclick="event.preventDefault();document.getElementById('recalcForm').submit()">先重算再导出</a>
+    <form id="recalcForm" method="post" action="/manage/recalc" style="display:none">
+      <input type="hidden" name="back" value="/manage/export" />
+    </form>
+  </div>
+</div>
+
+<div class="card mt-2">
+  <div class="card-title"><h3>导出说明</h3></div>
+  <ul class="small muted" style="padding-left:18px;margin:0">
+    <li>导出动作本身也会写入操作日志（谁、何时、导出了什么），便于事后追溯数据流向。</li>
+    <li>「小组赛计分过程」「个人赛计分过程」两张表按 ①票数 ②排名 ③赋分 ④各评审打分 ⑤有效评审数 ⑥合计 ⑦除数 ⑧平均分 ⑨封顶前 ⑩上限 ⑪最终得分 的顺序排列，可手工复算。</li>
+    <li>「说明与规则」表记录了导出时的全部参数（权重、赋分表、并列规则、缺评规则等），因此不同时间导出的表格可以自我解释。</li>
+    <li>所有时间均为北京时间（UTC+8）。</li>
+  </ul>
+</div>
+
+<%- include('partials/shell-bottom') %>

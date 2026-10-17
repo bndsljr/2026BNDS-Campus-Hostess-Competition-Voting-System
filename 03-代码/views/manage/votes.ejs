@@ -1,0 +1,155 @@
+<%- include('partials/shell-top', { settings, pageTitle: '投票数据 · 后台管理', nav, user, fmtLocal, serverNowIso, flash }) %>
+
+<div class="main-head">
+  <div>
+    <h1>投票数据</h1>
+    <div class="sub">查看、修改、作废全部投票记录。任何修改都会重新计算排名并写入操作日志。</div>
+  </div>
+  <div class="btn-group">
+    <a class="btn btn-sm" href="/manage/manual?c=<%= competition %>">✍️ 手动赋分</a>
+    <a class="btn btn-sm btn-primary" href="/manage/export">📥 导出</a>
+  </div>
+</div>
+
+<div class="flash flash-info" style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">
+  <span><b><%= competitionName %></b>数据总览：</span>
+  <span>大众评审投票 <b style="font-size:1.15rem"><%= summary.votes %></b> 条<% if (summary.invalid) { %>（另有已作废 <%= summary.invalid %> 条）<% } %></span>
+  <span style="color:var(--muted)">｜</span>
+  <span>专业评审打分 <b style="font-size:1.15rem"><%= summary.scoreRows %></b> 格（<b><%= summary.judgeSlots %> / <%= summary.judgeCount %></b> 位评审已提交）</span>
+  <span class="spacer"></span>
+  <span class="tiny">
+    ⚠️ 专业评审填的分数<b>不在本页</b>，请到
+    <a href="/manage/scores?c=<%= competition %>"><b>打分数数据</b></a> 页查看与修改
+  </span>
+</div>
+
+<div class="tabs">
+  <a href="/manage/votes?c=group" class="<%= competition === 'group' ? 'active' : '' %>">小组赛</a>
+  <a href="/manage/votes?c=individual" class="<%= competition === 'individual' ? 'active' : '' %>">个人赛</a>
+  <a href="/manage/votes?c=<%= competition %>&invalid=1" class="<%= includeInvalid ? 'active' : '' %>">
+    <%= includeInvalid ? '含已作废' : '显示已作废' %>
+  </a>
+  <a href="/manage/votes?c=<%= competition %>&source=manual" class="<%= source === 'manual' ? 'active' : '' %>">仅手动录入</a>
+</div>
+
+<div class="card mb-2" id="tallyBlock">
+  <div class="card-title">
+    <h3><%= competitionName %>·票数与得分一览</h3>
+    <span class="badge badge-brand">有效投票 <%= votes.filter(function(v){return !v.invalid;}).length %> 条</span>
+  </div>
+  <div class="table-wrap">
+    <table class="table compact">
+      <thead>
+        <tr><th>选手</th><th class="num">票数</th><th class="num">原始排名</th><th class="num">大众赋分</th><th class="num">专业均分</th><th class="num">赛事得分</th></tr>
+      </thead>
+      <tbody>
+        <% results.forEach(function (r) { %>
+          <tr>
+            <td><%= r.no %> · <%= r.name %></td>
+            <td class="num"><b><%= r.public_votes %></b></td>
+            <td class="num"><%= r.public_rank || '-' %></td>
+            <td class="num"><%= r.public_points %></td>
+            <td class="num"><%= r.pro_avg %></td>
+            <td class="num"><b><%= r.final_score %></b></td>
+          </tr>
+        <% }) %>
+        <% if (!results.length) { %><tr><td colspan="6" class="empty">暂无选手数据</td></tr><% } %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card" id="votesList">
+  <div class="card-title">
+    <h3>投票记录（<%= votes.length %> 条）</h3>
+    <span class="tiny muted">默认仅显示有效记录，按时间倒序</span>
+  </div>
+
+  <% if (!votes.length) { %>
+    <div class="empty"><div class="big">🗳️</div>暂无投票记录</div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>投票人</th>
+            <th>来源</th>
+            <th>投给</th>
+            <th>时间</th>
+            <th>IP</th>
+            <th>状态</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% votes.forEach(function (v) { %>
+            <tr>
+              <td class="tiny muted"><%= v.id %></td>
+              <td>
+                <% var code = v.code_id ? codeMap.get(v.code_id) : null; %>
+                <div class="small"><%= code ? (code.label || code.code) : (v.source === 'manual' ? '管理员手动录入' : '已删除密码条') %></div>
+                <div class="tiny muted mono"><%= code ? code.code.replace(/(.{4})(?=.)/g, '$1-') : '—' %></div>
+              </td>
+              <td>
+                <span class="badge <%= v.source === 'manual' ? 'badge-warn' : '' %>"><%= v.source === 'manual' ? '手动录入' : '本人提交' %></span>
+                <% if (v.operator) { %><div class="tiny muted">by <%= v.operator %></div><% } %>
+              </td>
+              <td class="small">
+                <% v.playerIds.forEach(function (pid) { %>
+                  <span class="badge badge-brand"><%= playerMap.get(pid) ? playerMap.get(pid).no + '·' + playerMap.get(pid).name : '已删除' %></span>
+                <% }) %>
+              </td>
+              <td class="tiny muted nowrap"><%= fmtLocal(v.created_at, false) %></td>
+              <td class="tiny muted mono"><%= v.ip || '-' %></td>
+              <td>
+                <span class="badge <%= v.invalid ? 'badge-err' : 'badge-ok' %>"><%= v.invalid ? '已作废' : '已计票' %></span>
+                <% if (v.note) { %><div class="tiny muted"><%= v.note %></div><% } %>
+              </td>
+              <td>
+                <div class="btn-group">
+                  <button type="button" class="btn btn-sm" data-toggle-row="vote-<%= v.id %>">修改</button>
+                  <form method="post" action="/manage/votes/invalidate" data-ajax data-refresh="#votesList,#tallyBlock">
+                    <input type="hidden" name="voteId" value="<%= v.id %>" />
+                    <input type="hidden" name="competition" value="<%= competition %>" />
+                    <input type="hidden" name="invalid" value="<%= v.invalid ? '0' : '1' %>" />
+                    <button class="btn btn-sm <%= v.invalid ? '' : 'btn-danger' %>" type="submit" data-confirm="<%= v.invalid ? '确认恢复该投票？' : '确认作废该投票？作废后不计入统计，且该密码条恢复可投票状态。' %>">
+                      <%= v.invalid ? '恢复' : '作废' %>
+                    </button>
+                  </form>
+                  <form method="post" action="/manage/votes/delete" data-ajax data-refresh="#votesList,#tallyBlock" data-confirm="确认彻底删除该投票记录？不可恢复，且会立即影响排名。">
+                    <input type="hidden" name="voteId" value="<%= v.id %>" />
+                    <input type="hidden" name="competition" value="<%= competition %>" />
+                    <button class="btn btn-sm btn-danger" type="submit">删除</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+            <tr id="vote-<%= v.id %>" style="display:none;background:#f9fbff">
+              <td colspan="8">
+                <form method="post" action="/manage/votes/update" data-ajax data-refresh="#votesList,#tallyBlock" class="row" style="gap:10px;align-items:flex-end">
+                  <input type="hidden" name="voteId" value="<%= v.id %>" />
+                  <input type="hidden" name="competition" value="<%= competition %>" />
+                  <div style="flex:1">
+                    <label>修改投给（最多 <%= settings.public_pick_count %> 位，勾选后保存）</label>
+                    <div class="row" style="gap:12px;flex-wrap:wrap">
+                      <% players.filter(function(p){return p.active;}).forEach(function (p) { %>
+                        <label class="checkline">
+                          <input type="checkbox" name="player" value="<%= p.id %>" <%= v.playerIds.indexOf(p.id) >= 0 ? 'checked' : '' %> />
+                          <%= p.no %>·<%= p.name %>
+                        </label>
+                      <% }) %>
+                    </div>
+                  </div>
+                  <button class="btn btn-sm btn-primary" type="submit" style="margin-bottom:2px">保存修改</button>
+                </form>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+
+<%- include('partials/shell-bottom') %>

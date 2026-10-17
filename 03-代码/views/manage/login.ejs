@@ -1,0 +1,43 @@
+<%- include('../partials/head', { settings: (typeof settings !== 'undefined' ? settings : { theme_color: '#1b3a6b', accent_color: '#c8a45c', event_title: '后台管理' }), pageTitle: '后台登录' }) %>
+
+<div class="topbar">
+  <img class="brand-logo" src="/assets/img/logo-sm.png" alt="BNDS TV" />
+  <div>
+    <div class="brand-title"><%= (typeof settings !== 'undefined' && settings.event_title) ? settings.event_title : '投票系统' %></div>
+    <div class="brand-sub">后台管理</div>
+  </div>
+  <div class="spacer"></div>
+</div>
+
+<div class="center-page">
+  <div style="width:100%;max-width:400px">
+    <div class="card">
+      <div class="center mb-2">
+        <h1 style="font-size:1.3rem;margin-bottom:4px">后台管理登录</h1>
+        <p class="muted small mb-0"><%= (typeof settings !== 'undefined' && settings.event_title) ? settings.event_title : '投票系统' %></p>
+      </div>
+
+      <% if (error) { %>
+        <div class="flash flash-error"><%= error %></div>
+      <% } %>
+
+      <form method="post" action="/manage/login" autocomplete="off">
+        <div class="field">
+          <label for="username">管理员账号</label>
+          <input type="text" id="username" name="username" value="<%= typeof username !== 'undefined' && username ? username : '' %>" required autofocus />
+        </div>
+        <div class="field">
+          <label for="password">密码</label>
+          <input type="password" id="password" name="password" required />
+        </div>
+        <button type="submit" class="btn btn-primary btn-lg btn-block">登录</button>
+      </form>
+
+      <p class="muted tiny center mt-2 mb-0">
+        连续输错 5 次将锁定账号 1 小时
+      </p>
+    </div>
+  </div>
+</div>
+
+<%- include('../partials/foot') %>

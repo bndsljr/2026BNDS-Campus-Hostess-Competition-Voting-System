@@ -1,0 +1,114 @@
+<%- include('partials/shell-top', { settings, pageTitle: '赛程与开关 · 后台管理', nav, user, fmtLocal, serverNowIso, flash }) %>
+
+<div class="main-head">
+  <div>
+    <h1>赛程与开关</h1>
+    <div class="sub">时间以北京时间（UTC+8）为准。到达截止时间后系统自动锁定投票并完成统计，无需人工干预。</div>
+  </div>
+</div>
+
+<form method="post" action="/manage/schedule/save" data-ajax data-refresh="#scheduleCards">
+  <div class="grid cols-2" id="scheduleCards">
+    <% [['group', '小组赛', groupStatus], ['individual', '个人赛', individualStatus]].forEach(function (item) { %>
+      <% var key = item[0], name = item[1], st = item[2]; %>
+      <div class="card">
+        <div class="card-title">
+          <h3><%= name %></h3>
+          <span class="badge <%= st.open ? 'badge-ok' : st.reason === 'ended' ? 'badge-err' : 'badge-warn' %>"><%= st.label %></span>
+        </div>
+
+        <label class="checkline mb-2">
+          <input type="checkbox" name="<%= key %>_enabled" <%= settings[key + '_enabled'] === '1' ? 'checked' : '' %> />
+          开启<%= name %>投票
+        </label>
+
+        <div class="form-grid">
+          <div>
+            <label><%= name %>开始时间</label>
+            <input type="datetime-local" name="<%= key %>_start_at" value="<%= isoToLocalInput(settings[key + '_start_at']) %>" />
+            <div class="hint">留空表示立即可以投票</div>
+          </div>
+          <div>
+            <label><%= name %>截止时间</label>
+            <input type="datetime-local" name="<%= key %>_end_at" value="<%= isoToLocalInput(settings[key + '_end_at']) %>" />
+            <div class="hint">留空表示不自动截止</div>
+          </div>
+        </div>
+
+        <div class="mt-2 small muted">
+          当前状态：
+          <% if (st.open) { %>
+            进行中<%= st.endAt ? '，' + humanRemain(st.endAt, now) + '后自动截止' : '（未设截止时间）' %>
+          <% } else { %>
+            <%= st.label %>
+            <% if (st.startAt) { %>｜开始 <%= fmtLocal(st.startAt, false) %><% } %>
+            <% if (st.endAt) { %>｜截止 <%= fmtLocal(st.endAt, false) %><% } %>
+          <% } %>
+        </div>
+
+        <div class="btn-group mt-2">
+          <button class="btn btn-sm" type="submit">保存时间设置</button>
+        </div>
+      </div>
+    <% }) %>
+  </div>
+
+  <div class="row end mt-2">
+    <button class="btn btn-primary btn-lg" type="submit">保存全部赛程设置</button>
+  </div>
+</form>
+
+<div class="grid cols-2 mt-2">
+  <% [['group', '小组赛', groupStatus], ['individual', '个人赛', individualStatus]].forEach(function (item) { %>
+    <% var key = item[0], name = item[1], st = item[2]; %>
+    <div class="card">
+      <div class="card-title"><h3><%= name %>快捷操作</h3></div>
+      <div class="btn-group">
+        <form method="post" action="/manage/schedule/toggle" data-ajax data-refresh="#scheduleCards">
+          <input type="hidden" name="competition" value="<%= key %>" />
+          <input type="hidden" name="action" value="open" />
+          <button class="btn btn-ok" type="submit" <%= st.open ? 'disabled' : '' %>>立即开启</button>
+        </form>
+        <form method="post" action="/manage/schedule/toggle" data-ajax data-refresh="#scheduleCards" data-confirm="确认立即截止<%= name %>投票？系统将立即完成统计，之后选手无法再投票。">
+          <input type="hidden" name="competition" value="<%= key %>" />
+          <input type="hidden" name="action" value="close" />
+          <button class="btn btn-danger" type="submit">立即截止并统计</button>
+        </form>
+        <form method="post" action="/manage/schedule/toggle" data-ajax data-refresh="#scheduleCards" data-confirm="确认清除<%= name %>的截止时间？投票将继续保持可用。">
+          <input type="hidden" name="competition" value="<%= key %>" />
+          <input type="hidden" name="action" value="clear_end" />
+          <button class="btn" type="submit">清除截止时间</button>
+        </form>
+        <form method="post" action="/manage/schedule/toggle" data-ajax data-refresh="#scheduleCards" data-confirm="确认重新开启<%= name %>投票并清除截止时间？">
+          <input type="hidden" name="competition" value="<%= key %>" />
+          <input type="hidden" name="action" value="reopen" />
+          <button class="btn" type="submit">重新开启</button>
+        </form>
+      </div>
+      <p class="tiny muted mt-2 mb-0">
+        开启/截止操作会记录到操作日志，并立即重算排名。
+      </p>
+    </div>
+  <% }) %>
+</div>
+
+<div class="card mt-2">
+  <div class="card-title"><h3>投票入口地址</h3></div>
+  <div class="table-wrap">
+    <table class="table compact">
+      <thead><tr><th>用途</th><th>路径</th><th>完整地址（服务器 IP）</th></tr></thead>
+      <tbody>
+        <tr><td>小组赛投票入口</td><td class="mono">/vote/group</td><td class="mono tiny"><%= baseUrl %>/vote/group</td></tr>
+        <tr><td>个人赛投票入口</td><td class="mono">/vote/individual</td><td class="mono tiny"><%= baseUrl %>/vote/individual</td></tr>
+        <tr><td>入口选择页（海报/二维码）</td><td class="mono">/</td><td class="mono tiny"><%= baseUrl %>/</td></tr>
+        <tr><td>排名公示榜（需开启）</td><td class="mono">/board</td><td class="mono tiny"><%= baseUrl %>/board</td></tr>
+        <tr><td>后台管理</td><td class="mono">/manage</td><td class="mono tiny"><%= baseUrl %>/manage</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="tiny muted mt-2 mb-0">
+    两个端口（80 与 8080）访问的是同一套系统与同一份数据，可任选其一。建议为两个入口分别生成二维码印在现场海报上。
+  </p>
+</div>
+
+<%- include('partials/shell-bottom') %>

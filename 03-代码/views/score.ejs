@@ -1,0 +1,109 @@
+<%- include('partials/head', { settings, pageTitle: competitionName + '专业评审打分' }) %>
+
+<div class="topbar">
+  <img class="brand-logo" src="/assets/img/logo-sm.png" alt="BNDS TV" />
+  <div>
+    <div class="brand-title"><%= competitionName %> · <%= roleLabel %></div>
+    <div class="brand-sub"><%= user.label %><%= judgeSlot ? '（评审席 ' + judgeSlot + '）' : '' %></div>
+  </div>
+  <div class="spacer"></div>
+  <% if (status.endAt && status.open) { %>
+    <span class="pill" data-deadline="<%= status.endAt %>"><%= humanRemain(status.endAt, now) %></span>
+  <% } %>
+  <a href="/logout">退出</a>
+</div>
+
+<div class="page">
+  <div class="mb-2">
+    <h1 style="margin-bottom:4px">请为每位选手打分</h1>
+    <p class="muted small mb-0">
+      百分制（0-100 分，可填一位小数）
+      <% if (closed) { %>
+        ｜<b style="color:var(--err)">本场投票已截止，当前为只读查看</b>
+      <% } else if (!canEdit) { %>
+        ｜<b style="color:var(--warn)">已提交，当前不允许修改</b>
+      <% } else { %>
+        ｜截止前可重复提交以修改分数<% if (status.endAt) { %>，截止时间 <%= fmtLocal(status.endAt, false) %><% } %>
+      <% } %>
+    </p>
+  </div>
+
+  <% if (closed) { %>
+    <div class="flash flash-error" style="font-size:1rem">
+      ⏰ <b>本场专业评审打分已经截止</b>，因此无法再填写或提交分数。
+      <% if (Object.keys(myScores).length) { %>
+        下面显示的是您已提交的分数（只读）。
+      <% } else { %>
+        您在本场<b>尚未提交过分数</b>；如确需补录，请联系现场工作人员在后台处理。
+      <% } %>
+    </div>
+  <% } %>
+
+  <% if (error) { %>
+    <div class="flash flash-error"><%= error %></div>
+  <% } %>
+
+  <% if (!judgeSlot) { %>
+    <div class="flash flash-error">该密码条未绑定评审席，请联系管理员在后台「密码条管理」中设置评审席编号。</div>
+  <% } %>
+
+  <% if (!status.open && Object.keys(myScores).length) { %>
+    <div class="flash flash-info">投票已截止。以下为您已提交的分数（只读）。</div>
+  <% } %>
+
+  <form method="post" action="/vote/score" id="scoreForm" data-competition="<%= competition %>" data-slot="<%= judgeSlot || 0 %>" autocomplete="off">
+    <input type="hidden" name="competition" value="<%= competition %>" />
+
+    <div class="card tight mb-2">
+      <div class="row between">
+        <div class="small">填写进度 <b id="progText">0 / <%= players.length %></b></div>
+        <% if (canEdit && status.open) { %>
+          <button type="button" class="btn btn-sm" id="clearDraft">清空重填</button>
+        <% } %>
+      </div>
+      <div class="progress mt-1"><i id="progBar" style="width:0%"></i></div>
+    </div>
+
+    <div class="score-list">
+      <% players.forEach(function (p) { %>
+        <% var val = (typeof draftScores !== 'undefined' && draftScores[p.id] !== undefined) ? draftScores[p.id] : (myScores[p.id] !== undefined ? myScores[p.id] : ''); %>
+        <div class="score-row">
+          <% if (p.photo) { %>
+            <img class="avatar" src="/uploads/<%= p.photo %>" alt="<%= p.name %>" loading="lazy" />
+          <% } else { %>
+            <div class="avatar"><%= p.name.slice(0, 1) %></div>
+          <% } %>
+          <div class="sname">
+            <%= p.name %>
+            <span class="sno">NO. <%= String(p.no).padStart(2, '0') %><%= p.tag ? ' · ' + p.tag : '' %></span>
+          </div>
+          <input
+            type="number"
+            name="score_<%= p.id %>"
+            min="0"
+            max="100"
+            step="0.1"
+            inputmode="decimal"
+            placeholder="--"
+            value="<%= val %>"
+            data-server="<%= myScores[p.id] !== undefined ? '1' : '0' %>"
+            <%= (canEdit && status.open) ? '' : 'readonly' %>
+          />
+        </div>
+      <% }) %>
+    </div>
+
+    <% if (canEdit && status.open) { %>
+      <div class="submit-bar">
+        <div class="submit-inner">
+          <div class="count">已填 <b id="progText2">0</b> / <%= players.length %></div>
+          <div class="spacer"></div>
+          <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">提交打分</button>
+        </div>
+      </div>
+    <% } %>
+  </form>
+</div>
+
+<script src="/assets/js/score.js?v=<%= typeof assetVersion === "undefined" ? "1" : assetVersion %>"></script>
+<%- include('partials/foot') %>

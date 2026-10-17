@@ -1,0 +1,38 @@
+<%- include('partials/head', { settings, pageTitle: '提交成功' }) %>
+
+<div class="topbar">
+  <img class="brand-logo" src="/assets/img/logo-sm.png" alt="BNDS TV" />
+  <div>
+    <div class="brand-title"><%= settings.event_title %></div>
+    <div class="brand-sub"><%= competitionName %></div>
+  </div>
+  <div class="spacer"></div>
+  <a href="/logout">退出</a>
+</div>
+
+<div class="center-page">
+  <div style="width:100%;max-width:440px">
+    <div class="card center">
+      <div style="font-size:3rem;line-height:1">✅</div>
+      <h1 style="margin-bottom:8px">
+        <% if (role === 'pro') { %><%= updated ? '打分已更新' : '打分提交成功' %><% } else { %>投票提交成功<% } %>
+      </h1>
+      <p class="muted">
+        <% if (role === 'pro') { %>
+          您的<%= competitionName %>专业评审打分已记录。截止前可再次进入修改。
+        <% } else { %>
+          您的<%= competitionName %>投票已记录，感谢您的参与。
+        <% } %>
+      </p>
+
+      <div class="grid mt-2" style="gap:10px">
+        <a class="btn" href="/logout">退出登录</a>
+      </div>
+    </div>
+    <p class="center muted tiny mt-2">
+      请勿将密码条转发他人，每人一条，各自独立计票。如需继续请按现场指引操作。
+    </p>
+  </div>
+</div>
+
+<%- include('partials/foot') %>

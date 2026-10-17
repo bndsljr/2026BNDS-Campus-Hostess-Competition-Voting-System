@@ -1,0 +1,17 @@
+# 依赖
+node_modules/
+
+# 运行时数据（含真实数据与凭据，不要提交）
+data/
+demo-data/
+logs/
+backup/
+.env
+
+# 系统文件
+.DS_Store
+*.log
+
+# SQLite 运行时临时文件
+*.db-shm
+*.db-wal

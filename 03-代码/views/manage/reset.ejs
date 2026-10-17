@@ -1,0 +1,78 @@
+<%- include('partials/shell-top', { settings, pageTitle: '数据清空 · 后台管理', nav, user, fmtLocal, serverNowIso, flash }) %>
+
+<div class="main-head">
+  <div>
+    <h1>数据清空</h1>
+    <div class="sub">用于删除测试数据、或在正式比赛前把系统恢复到干净状态。执行时会重新计算排名，并写入操作日志。</div>
+  </div>
+</div>
+
+<div class="flash flash-error" style="border-width:1px">
+  ⚠️ <b>不可恢复操作</b>：清空后数据无法找回。系统每天 02:00 会自动备份，如有需要请先在
+  <a href="/manage/export">数据导出</a>里导出一份 Excel 存档，或联系技术人员从备份恢复。
+</div>
+
+<div id="resetStats">
+  <div class="stat-grid mb-2">
+    <div class="stat"><div class="label">小组赛·投票记录</div><div class="value"><%= counts.groupVotes %><span class="unit">条</span></div></div>
+    <div class="stat"><div class="label">个人赛·投票记录</div><div class="value"><%= counts.individualVotes %><span class="unit">条</span></div></div>
+    <div class="stat"><div class="label">小组赛·评审打分</div><div class="value"><%= counts.groupScores %><span class="unit">格</span></div></div>
+    <div class="stat"><div class="label">个人赛·评审打分</div><div class="value"><%= counts.individualScores %><span class="unit">格</span></div></div>
+    <div class="stat"><div class="label">操作日志</div><div class="value"><%= counts.audit %><span class="unit">条</span></div></div>
+  </div>
+</div>
+
+<div class="card" style="max-width:760px">
+  <div class="card-title"><h3>选择要清空的数据</h3></div>
+
+  <form method="post" action="/manage/reset/apply" data-ajax data-refresh="#resetStats" id="resetForm" autocomplete="off">
+    <div class="grid cols-2">
+      <label class="checkline" style="padding:10px 12px;border:1px solid var(--border);border-radius:9px">
+        <input type="checkbox" name="groupVotes" checked />
+        <span>小组赛 · 全部投票记录<%= counts.groupVotes ? `（${counts.groupVotes} 条）` : '' %></span>
+      </label>
+      <label class="checkline" style="padding:10px 12px;border:1px solid var(--border);border-radius:9px">
+        <input type="checkbox" name="individualVotes" checked />
+        <span>个人赛 · 全部投票记录<%= counts.individualVotes ? `（${counts.individualVotes} 条）` : '' %></span>
+      </label>
+      <label class="checkline" style="padding:10px 12px;border:1px solid var(--border);border-radius:9px">
+        <input type="checkbox" name="groupScores" checked />
+        <span>小组赛 · 专业评审打分<%= counts.groupScores ? `（${counts.groupScores} 格）` : '' %></span>
+      </label>
+      <label class="checkline" style="padding:10px 12px;border:1px solid var(--border);border-radius:9px">
+        <input type="checkbox" name="individualScores" checked />
+        <span>个人赛 · 专业评审打分<%= counts.individualScores ? `（${counts.individualScores} 格）` : '' %></span>
+      </label>
+    </div>
+
+    <label class="checkline mt-2" style="color:var(--err)">
+      <input type="checkbox" name="clearAudit" />
+      <span>连同「操作日志」一起清空（<%= counts.audit %> 条，一般<b>不需要</b>勾选）</span>
+    </label>
+
+    <hr />
+
+    <div class="row" style="gap:10px;align-items:flex-end">
+      <div style="flex:1;max-width:320px">
+        <label>输入当前管理员密码以确认</label>
+        <input type="password" name="password" required placeholder="当前登录账号的密码" />
+        <div class="hint">密码不正确时不会执行任何清空操作</div>
+      </div>
+      <button class="btn btn-danger btn-lg" type="submit" data-confirm="确认清空所选数据？此操作不可恢复。">清空所选数据</button>
+    </div>
+  </form>
+</div>
+
+<div class="card mt-2" style="max-width:760px">
+  <div class="card-title"><h3>清空范围说明</h3></div>
+  <ul class="small muted" style="padding-left:18px;margin:0">
+    <li><b>投票记录</b>：删除该赛事的全部大众评审投票（含手动录入/补票的记录），密码条的投票状态随之重置，同一张密码条可以重新投票。</li>
+    <li><b>专业评审打分</b>：删除该赛事全部评审席的打分，评审可以重新提交。</li>
+    <li><b>操作日志</b>：默认<b>保留</b>。清空数据这个动作本身也会被记录一条，便于追溯。</li>
+    <li>清空不会影响：选手名单与照片、密码条本身、赛程开关、系统设置。</li>
+    <li>若只想删除个别记录，请到 <a href="/manage/votes">投票数据</a> 页逐条「作废」或「删除」；
+      若只需重置某一张密码条，请到 <a href="/manage/codes">密码条管理</a> 点「重置投票」。</li>
+  </ul>
+</div>
+
+<%- include('partials/shell-bottom') %>

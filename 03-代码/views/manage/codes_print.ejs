@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>密码条打印 · <%= settings.event_title %></title>
+<style>
+  /* ===== 自动排版：A4 纵向，按纸张宽度自动分栏与分页 ===== */
+  @page { size: A4 portrait; margin: 10mm 8mm; }
+
+  :root {
+    --brand: <%= settings.theme_color || '#1b3a6b' %>;
+    --cols: 2;
+    --slip-min-h: <%= size === '大' ? '40mm' : size === '小' ? '25mm' : '32mm' %>;
+    --code-size: <%= size === '大' ? '21pt' : size === '小' ? '13.5pt' : '17pt' %>;
+    --label-size: <%= size === '大' ? '9.5pt' : size === '小' ? '7.5pt' : '8.5pt' %>;
+    --pad: <%= size === '大' ? '4.4mm' : size === '小' ? '2.6mm' : '3.5mm' %>;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #eef1f6;
+    color: #1b2333;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+    font-size: 10pt;
+  }
+
+  .toolbar {
+    position: sticky; top: 0; z-index: 10;
+    background: #fff; border-bottom: 1px solid #e4e9f2;
+    padding: 10px 14px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    box-shadow: 0 2px 10px rgba(23,43,77,.06);
+  }
+  .toolbar h1 { font-size: 15px; margin: 0 12px 0 0; }
+  .toolbar .spacer { flex: 1; }
+  .toolbar label { font-size: 12px; color: #6b7787; margin: 0 4px 0 8px; }
+  .toolbar select, .toolbar input[type=number] {
+    padding: 5px 8px; border: 1px solid #e4e9f2; border-radius: 7px; font-size: 13px; font-family: inherit;
+  }
+  .btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 7px 14px; border-radius: 8px; border: 1px solid #e4e9f2; background: #fff;
+    font-size: 13px; cursor: pointer; text-decoration: none; color: #1b2333;
+  }
+  .btn:hover { background: #f3f6fb; }
+  .btn-primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+  .btn-primary:hover { filter: brightness(1.08); }
+  .btn.active { background: var(--brand); border-color: var(--brand); color: #fff; }
+
+  .sheet { padding: 8mm; }
+
+  .print-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--cols), 1fr);
+    gap: 3mm;
+  }
+
+  .print-slip {
+    border: 1px dashed #9aa5b6;
+    border-radius: 6px;
+    padding: var(--pad);
+    background: #fff;
+    min-height: var(--slip-min-h);
+    display: flex; flex-direction: column; justify-content: space-between;
+    break-inside: avoid; page-break-inside: avoid;
+  }
+  .print-slip .head {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 6px;
+    font-size: var(--label-size); color: #5b6675;
+  }
+  .print-slip .seq { font-family: ui-monospace, Menlo, monospace; color: #98a3b3; }
+  .print-slip .code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: var(--code-size); font-weight: 800; letter-spacing: .14em;
+    color: #101827; margin: 1.5mm 0 0.8mm;
+  }
+  .print-slip .meta { font-size: var(--label-size); color: #5b6675; }
+  .print-slip .meta b { color: #1b2333; }
+  .print-slip .foot {
+    display: flex; justify-content: space-between; align-items: flex-end; gap: 6px;
+    font-size: var(--label-size); color: #6b7787; margin-top: 1.5mm;
+    border-top: 1px dashed #dde3ec; padding-top: 1.2mm;
+  }
+  .print-slip .checks { text-align: right; white-space: nowrap; letter-spacing: .02em; }
+  .print-slip .foot-note { font-size: 7.5pt; color: #9aa5b6; }
+  .print-slip.pro { border-color: #c8a45c; }
+  .print-slip.pro .code { color: #7a6015; }
+
+  .hint { padding: 10px 14px; color: #6b7787; font-size: 12px; }
+
+  @media print {
+    body { background: #fff; }
+    .no-print { display: none !important; }
+    .sheet { padding: 0; }
+    .print-slip { border-color: #b6bfcc; }
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar no-print">
+  <img src="/assets/img/logo-sm.png" alt="BNDS TV" style="height:26px;width:auto;margin-right:6px" />
+  <h1>密码条打印</h1>
+  <a class="btn <%= role === 'public' ? 'active' : '' %>" href="?role=public&cols=<%= cols %>&size=<%= size %>">大众评审（<%= counts.public %> 张）</a>
+  <a class="btn <%= role === 'pro' ? 'active' : '' %>" href="?role=pro&cols=<%= cols %>&size=<%= size %>">专业评审（<%= counts.pro %> 张）</a>
+  <span class="spacer"></span>
+  <label>每行</label>
+  <select onchange="location.href='?role=<%= role %>&cols='+this.value+'&size=<%= size %>'">
+    <% [1, 2, 3].forEach(function (n) { %>
+      <option value="<%= n %>" <%= cols === n ? 'selected' : '' %>><%= n %> 列</option>
+    <% }) %>
+  </select>
+  <label>字号</label>
+  <select onchange="location.href='?role=<%= role %>&cols=<%= cols %>&size='+this.value">
+    <% ['大', '中', '小'].forEach(function (n) { %>
+      <option value="<%= n %>" <%= size === n ? 'selected' : '' %>><%= n %></option>
+    <% }) %>
+  </select>
+  <button class="btn btn-primary" onclick="window.print()">🖨️ 打印本页</button>
+  <a class="btn" href="/manage/codes">返回管理</a>
+</div>
+
+<div class="hint no-print">
+  共 <b><%= codes.length %></b> 张（<%= role === 'pro' ? '专业评审 · 百分制打分' : '大众评审 · 勾选 ' + settings.public_pick_count + ' 人投票' %>，已启用）。
+  排版会自动按 A4 纸张分栏分页，虚线为裁剪线；直接点「打印本页」即可，建议关闭浏览器「页眉页脚」。
+</div>
+
+<div class="sheet">
+  <% if (!codes.length) { %>
+    <div class="hint">没有可打印的启用密码条。</div>
+  <% } else { %>
+    <div class="print-grid">
+      <% codes.forEach(function (c, idx) { %>
+        <div class="print-slip <%= c.role === 'pro' ? 'pro' : '' %>">
+          <div>
+            <div class="head">
+              <span><%= settings.event_title %></span>
+              <span class="seq">#<%= String(idx + 1).padStart(3, '0') %></span>
+            </div>
+            <div class="code"><%= c.code.replace(/(.{4})(?=.)/g, '$1-') %></div>
+            <div class="meta">
+              <b><%= c.label || '' %></b>
+              <%= c.role === 'pro' ? '｜专业评审打分' : '｜大众评审投票' %>
+              <%= c.judge_slot ? '（评审席 ' + c.judge_slot + '）' : '' %>
+            </div>
+          </div>
+          <div class="foot">
+            <span class="foot-note">每人一张 · 请勿转借</span>
+            <span class="checks">小组赛 □　个人赛 □</span>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+</div>
+
+</body>
+</html>

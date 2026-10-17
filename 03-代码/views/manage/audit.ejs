@@ -1,0 +1,75 @@
+<%- include('partials/shell-top', { settings, pageTitle: '操作日志 · 后台管理', nav, user, fmtLocal, serverNowIso, flash }) %>
+
+<div class="main-head">
+  <div>
+    <h1>操作日志</h1>
+    <div class="sub">共 <%= total %> 条记录，记录全部人工操作及其修改前后内容（投票提交、评分、手动赋分、开关赛程、数据修改、导出等）。</div>
+  </div>
+  <div class="btn-group">
+    <a class="btn btn-sm" href="/manage/audit/export">📥 导出含日志的全量 Excel</a>
+  </div>
+</div>
+
+<div class="card mb-2">
+  <form method="get" action="/manage/audit" class="row" style="gap:8px">
+    <input type="search" name="q" value="<%= q || '' %>" placeholder="搜索操作人 / 对象 / 备注" style="max-width:280px" />
+    <select name="action" style="max-width:230px">
+      <option value="">全部动作</option>
+      <% ['admin.login','admin.login.failed','code.login','code.login.failed','vote.submit','vote.manual.add','vote.manual.bulk','vote.items.update','vote.invalidate','vote.restore','vote.delete','score.submit','score.update','score.manual.set','score.clear','code.generate','code.update','code.create','code.delete','code.enable','code.disable','code.votes.reset','schedule.save','schedule.open','schedule.close','schedule.reopen','schedule.clear_end','settings.save','result.recalc','export.full','export.rank','player.create','player.update','player.delete','player.photo'].forEach(function (a) { %>
+        <option value="<%= a %>" <%= action === a ? 'selected' : '' %>><%= a %></option>
+      <% }) %>
+    </select>
+    <button class="btn btn-sm" type="submit">筛选</button>
+    <% if (q || action) { %><a class="btn btn-sm" href="/manage/audit">清除筛选</a><% } %>
+  </form>
+</div>
+
+<div class="card">
+  <% if (!logs.length) { %>
+    <div class="empty"><div class="big">📜</div>暂无日志记录</div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr><th>时间</th><th>操作人</th><th>动作</th><th>对象</th><th>修改前 → 修改后</th><th>备注</th><th>IP</th></tr>
+        </thead>
+        <tbody>
+          <% logs.forEach(function (l) { %>
+            <tr>
+              <td class="tiny muted nowrap"><%= fmtLocal(l.at, false) %></td>
+              <td class="small">
+                <span class="badge <%= l.actor_type === 'admin' ? 'badge-brand' : l.actor_type === 'code' ? 'badge' : 'badge-warn' %>">
+                  <%= l.actor_type === 'admin' ? '管理员' : l.actor_type === 'code' ? '投票人' : '系统' %>
+                </span>
+                <%= l.actor || '-' %>
+              </td>
+              <td class="tiny mono"><%= l.action %></td>
+              <td class="tiny muted"><%= l.target || '-' %></td>
+              <td class="tiny" style="max-width:360px;word-break:break-all">
+                <% if (l.before_json) { %><span class="muted"><%= l.before_json.slice(0, 200) %></span><% } %>
+                <% if (l.before_json && l.after_json) { %> → <% } %>
+                <% if (l.after_json) { %><span style="color:var(--brand)"><%= l.after_json.slice(0, 200) %></span><% } %>
+              </td>
+              <td class="small"><%= l.note || '' %></td>
+              <td class="tiny muted mono"><%= l.ip || '-' %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="row between mt-2">
+      <div class="small muted">第 <%= page %> 页，共 <%= Math.max(1, Math.ceil(total / perPage)) %> 页</div>
+      <div class="btn-group">
+        <% if (page > 1) { %>
+          <a class="btn btn-sm" href="/manage/audit?page=<%= page - 1 %><%= action ? '&action=' + action : '' %><%= q ? '&q=' + encodeURIComponent(q) : '' %>">← 上一页</a>
+        <% } %>
+        <% if (page * perPage < total) { %>
+          <a class="btn btn-sm" href="/manage/audit?page=<%= page + 1 %><%= action ? '&action=' + action : '' %><%= q ? '&q=' + encodeURIComponent(q) : '' %>">下一页 →</a>
+        <% } %>
+      </div>
+    </div>
+  <% } %>
+</div>
+
+<%- include('partials/shell-bottom') %>

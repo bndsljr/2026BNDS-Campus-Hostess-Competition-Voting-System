@@ -1,0 +1,96 @@
+<%- include('partials/head', { settings, pageTitle: competitionName + '投票' }) %>
+
+<div class="topbar">
+  <img class="brand-logo" src="/assets/img/logo-sm.png" alt="BNDS TV" />
+  <div>
+    <div class="brand-title"><%= competitionName %><%= roleLabel %></div>
+    <div class="brand-sub"><%= user.label %></div>
+  </div>
+  <div class="spacer"></div>
+  <% if (status.endAt && status.open) { %>
+    <span class="pill" data-deadline="<%= status.endAt %>"><%= humanRemain(status.endAt, now) %></span>
+  <% } %>
+  <a href="/logout">退出</a>
+</div>
+
+<div class="page">
+  <% if (alreadyVoted) { %>
+    <div class="card center mt-3">
+      <div style="font-size:2.6rem">✅</div>
+      <h2 style="margin-bottom:8px">您已完成<%= competitionName %>投票</h2>
+      <p class="muted">每条密码条在本场只能投票一次，感谢您的参与。</p>
+      <% if (error) { %>
+        <div class="flash flash-error"><%= error %></div>
+      <% } %>
+      <p class="muted small mb-0">本场投票已结束，您可以关闭本页面。</p>
+      <div class="btn-group mt-2" style="justify-content:center">
+        <a class="btn" href="/logout">退出登录</a>
+      </div>
+    </div>
+  <% } else { %>
+    <div class="mb-2">
+      <h1 style="margin-bottom:4px">请勾选您支持的选手</h1>
+      <p class="muted small mb-0">
+        最多选择 <b><%= pickCount %></b> 位，可以少选，<b>提交后不可修改</b>
+        <% if (status.endAt) { %>｜截止时间：<%= fmtLocal(status.endAt, false) %><% } %>
+      </p>
+    </div>
+
+    <% if (error) { %>
+      <div class="flash flash-error"><%= error %></div>
+    <% } %>
+
+    <form method="post" action="/vote/submit" id="voteForm" data-max="<%= pickCount %>">
+      <input type="hidden" name="competition" value="<%= competition %>" />
+      <div class="players">
+        <% players.forEach(function (p) { %>
+          <% var selected = (typeof selectedIds !== 'undefined' && selectedIds.indexOf(p.id) >= 0); %>
+          <label class="player <%= selected ? 'selected' : '' %>">
+            <input
+              type="checkbox"
+              name="player"
+              value="<%= p.id %>"
+              data-no="<%= p.no %>"
+              data-name="<%= p.name %>"
+              <%= selected ? 'checked' : '' %>
+            />
+            <span class="tick">✓</span>
+            <% if (p.photo) { %>
+              <img class="photo" src="/uploads/<%= p.photo %>" alt="<%= p.name %>" loading="lazy" />
+            <% } else { %>
+              <div class="photo-fallback"><span><%= p.name.slice(0, 1) %></span></div>
+            <% } %>
+            <div class="meta">
+              <div class="pno">NO. <%= String(p.no).padStart(2, '0') %></div>
+              <div class="pname"><%= p.name %></div>
+              <% if (p.tag) { %><div class="ptag"><%= p.tag %></div><% } %>
+            </div>
+          </label>
+        <% }) %>
+      </div>
+
+      <div class="submit-bar">
+        <div class="submit-inner">
+          <div class="count">已选 <b id="pickCount">0</b> / <%= pickCount %></div>
+          <div class="spacer"></div>
+          <button type="submit" class="btn btn-primary btn-lg" id="submitBtn" disabled>提交投票</button>
+        </div>
+      </div>
+    </form>
+  <% } %>
+</div>
+
+<div class="modal-mask" id="confirmModal">
+  <div class="modal">
+    <h3>确认提交投票？</h3>
+    <p class="muted small">提交后不可修改，请核对以下选手：</p>
+    <ul class="list-plain" id="confirmList"></ul>
+    <div class="btn-group mt-2 row end">
+      <button type="button" class="btn" data-close-modal>再想想</button>
+      <button type="button" class="btn btn-primary" id="confirmOk">确认提交</button>
+    </div>
+  </div>
+</div>
+
+<script src="/assets/js/vote.js?v=<%= typeof assetVersion === "undefined" ? "1" : assetVersion %>"></script>
+<%- include('partials/foot') %>

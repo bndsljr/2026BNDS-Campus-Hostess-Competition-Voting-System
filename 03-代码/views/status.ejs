@@ -1,0 +1,34 @@
+<%- include('partials/head', { settings, pageTitle: competitionName + ' · ' + status.label }) %>
+
+<div class="topbar">
+  <img class="brand-logo" src="/assets/img/logo-sm.png" alt="BNDS TV" />
+  <div>
+    <div class="brand-title"><%= competitionName %><%= roleLabel %></div>
+    <div class="brand-sub"><%= user.label %></div>
+  </div>
+  <div class="spacer"></div>
+  <a href="/logout">退出</a>
+</div>
+
+<div class="center-page">
+  <div style="width:100%;max-width:440px">
+    <div class="card center">
+      <div style="font-size:2.8rem;line-height:1"><%= status.reason === 'ended' ? '⏰' : status.reason === 'pending' ? '🕒' : '🔒' %></div>
+      <h1 style="margin-bottom:8px"><%= status.label %></h1>
+      <p class="muted">
+        <% if (status.reason === 'pending' && status.startAt) { %>
+          <%= competitionName %>投票将于 <b><%= fmtLocal(status.startAt) %></b> 开始，请稍后再来。
+        <% } else if (status.reason === 'ended') { %>
+          <%= competitionName %>投票已于 <b><%= fmtLocal(status.endAt) %></b> 截止，感谢您的参与。
+        <% } else { %>
+          本场投票当前未开放，请等待工作人员通知。
+        <% } %>
+      </p>
+      <div class="btn-group mt-2" style="justify-content:center">
+        <a class="btn" href="/logout">退出登录</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%- include('partials/foot') %>

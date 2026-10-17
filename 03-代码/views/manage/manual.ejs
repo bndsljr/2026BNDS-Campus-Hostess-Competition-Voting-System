@@ -1,0 +1,161 @@
+<%- include('partials/shell-top', { settings, pageTitle: '手动赋分 · 后台管理', nav, user, fmtLocal, serverNowIso, flash }) %>
+
+<div class="main-head">
+  <div>
+    <h1>手动赋分专用页面</h1>
+    <div class="sub">
+      用于现场补录、纸质表录入、临时加票、修正分数。所有操作都会记录操作人与修改前后内容，并自动重新计算排名。
+    </div>
+  </div>
+</div>
+
+<div class="tabs">
+  <a href="/manage/manual?c=group" class="<%= competition === 'group' ? 'active' : '' %>">小组赛</a>
+  <a href="/manage/manual?c=individual" class="<%= competition === 'individual' ? 'active' : '' %>">个人赛</a>
+</div>
+
+<div class="grid cols-2">
+  <!-- ① 手动新增投票 -->
+  <div class="card">
+    <div class="card-title"><h3>① 手动新增一条大众投票</h3><span class="badge badge-brand">票数 +1</span></div>
+    <p class="muted small">适用于纸质票补录。勾选该票所选选手（最多 <%= settings.public_pick_count %> 位），提交后生成一条新的投票记录。</p>
+    <form method="post" action="/manage/manual/apply" id="manualForm" data-ajax data-refresh="#currentStats">
+      <input type="hidden" name="competition" value="<%= competition %>" />
+      <input type="hidden" name="kind" value="vote" />
+      <div class="row" style="gap:12px;flex-wrap:wrap">
+        <% players.forEach(function (p) { %>
+          <label class="checkline">
+            <input type="checkbox" name="player" value="<%= p.id %>" />
+            <%= p.no %>·<%= p.name %>
+          </label>
+        <% }) %>
+      </div>
+      <div class="field mt-2">
+        <label>备注（建议填写，如：纸票第 12 张）</label>
+        <input type="text" name="note" placeholder="选填" />
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-primary" type="submit">确认新增投票</button>
+        <button class="btn" type="button" id="previewBtn" data-preview-for="manualForm" data-preview-box="previewResult">预览影响（改前 → 改后）</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- ② 批量补票 -->
+  <div class="card">
+    <div class="card-title"><h3>② 为某位选手批量补票</h3><span class="badge badge-warn">票数 +N</span></div>
+    <p class="muted small">一次性为某位选手增加 N 票（生成 N 条单人手动投票记录，便于逐条追溯）。</p>
+    <form method="post" action="/manage/manual/apply" data-ajax data-refresh="#currentStats">
+      <input type="hidden" name="competition" value="<%= competition %>" />
+      <input type="hidden" name="kind" value="bulk" />
+      <div class="form-grid">
+        <div>
+          <label>选手</label>
+          <select name="playerId" required>
+            <% players.forEach(function (p) { %>
+              <option value="<%= p.id %>"><%= p.no %> · <%= p.name %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div>
+          <label>增加票数</label>
+          <input type="number" name="count" value="1" min="1" max="500" required />
+        </div>
+      </div>
+      <div class="field mt-2">
+        <label>备注</label>
+        <input type="text" name="note" placeholder="如：评委团补充投票 5 张" />
+      </div>
+      <button class="btn btn-primary" type="submit" data-confirm="确认补票？该操作会立即改变排名。">确认补票</button>
+    </form>
+  </div>
+</div>
+
+<!-- ③ 手动录入专业评审分数 -->
+<div class="card mt-2">
+  <div class="card-title">
+    <h3>③ 手动录入 / 覆盖专业评审分数</h3>
+    <span class="badge badge-brand">百分制</span>
+  </div>
+  <p class="muted small">
+    <%= competitionName %>：每位评审对每位选手打 0-100 分。填入即覆盖该格原有分数；留空表示不修改。<br />
+    平均分规则：<%= settings.missing_judge_rule === 'all' ? '分数之和 ÷ ' + settings.judge_count + '（缺评按 0 分计入）' : '按实际已提交评审人数求平均' %>。
+  </p>
+  <form method="post" action="/manage/manual/apply" id="manualScoreForm" data-ajax data-refresh="#currentStats">
+    <input type="hidden" name="competition" value="<%= competition %>" />
+    <input type="hidden" name="kind" value="scores" />
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>选手</th>
+            <% for (var s = 1; s <= judgeCount; s++) { %><th class="num">评审<%= s %></th><% } %>
+            <th class="num">当前有效评审</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% players.forEach(function (p) { %>
+            <tr>
+              <td><b><%= p.no %></b> · <%= p.name %></td>
+              <% for (var s = 1; s <= judgeCount; s++) { %>
+                <td class="num">
+                  <input type="number" name="s_<%= s %>_<%= p.id %>" min="0" max="100" step="0.1" placeholder="—" style="width:82px;text-align:center" />
+                </td>
+              <% } %>
+              <td class="num"><%= results.find(function(r){return r.player_id === p.id;}) ? results.find(function(r){return r.player_id === p.id;}).pro_judges : 0 %> / <%= judgeCount %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <div class="field mt-2">
+      <label>备注</label>
+      <input type="text" name="note" placeholder="如：评审 3 的纸质打分表录入" />
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-primary" type="submit">保存分数</button>
+      <button class="btn" type="button" id="previewBtn2" data-preview-for="manualScoreForm" data-preview-box="previewResult">预览影响（改前 → 改后）</button>
+    </div>
+  </form>
+</div>
+
+<!-- 预览结果 -->
+<div id="previewResult" class="mt-2"></div>
+
+<!-- 当前票数与排名 -->
+<div class="card mt-2" id="currentStats">
+  <div class="card-title"><h3>当前 <%= competitionName %> 统计（改前基准）</h3><a class="btn btn-sm" href="/manage/votes?c=<%= competition %>">查看原始投票记录</a></div>
+  <div class="table-wrap">
+    <table class="table compact">
+      <thead>
+        <tr><th>选手</th><th class="num">大众票数</th><th class="num">原始排名</th><th class="num">赋分</th><th class="num">专业均分</th><th class="num">赛事得分</th></tr>
+      </thead>
+      <tbody>
+        <% results.forEach(function (r) { %>
+          <tr>
+            <td><%= r.no %> · <%= r.name %></td>
+            <td class="num"><%= r.public_votes %></td>
+            <td class="num"><%= r.public_rank || '-' %></td>
+            <td class="num"><%= r.public_points %></td>
+            <td class="num"><%= r.pro_avg %></td>
+            <td class="num"><b><%= r.final_score %></b></td>
+          </tr>
+        <% }) %>
+        <% if (!results.length) { %><tr><td colspan="6" class="empty">暂无数据</td></tr><% } %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card mt-2">
+  <div class="card-title"><h3>操作提示</h3></div>
+  <ul class="small muted" style="padding-left:18px;margin:0">
+    <li>「预览影响」只在内存中计算，不会写入数据库；确认无误后再点保存/新增。</li>
+    <li>补票与手动投票都会在「投票数据」页显示为「手动录入」，并记录操作人与备注。</li>
+    <li>若录错了，可在「投票数据」页作废该记录，或在「打分数数据」页清空该格分数。</li>
+    <li>所有变更都会重新计算该赛事排名，并联动更新最终总成绩。</li>
+  </ul>
+</div>
+
+
+<%- include('partials/shell-bottom') %>

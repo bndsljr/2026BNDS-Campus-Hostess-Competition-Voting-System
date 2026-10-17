@@ -1,0 +1,60 @@
+<%- include('partials/head', { settings, pageTitle: competitionName + '投票 · 登录' }) %>
+
+<div class="topbar">
+  <img class="brand-logo" src="/assets/img/logo-sm.png" alt="BNDS TV" />
+  <div>
+    <div class="brand-title"><%= settings.event_title %></div>
+    <div class="brand-sub"><%= competitionName %>投票入口</div>
+  </div>
+  <div class="spacer"></div>
+</div>
+
+<div class="center-page">
+  <div style="width:100%;max-width:430px">
+    <div class="card">
+      <div class="center mb-2">
+        <h1 style="font-size:1.35rem;margin-bottom:6px"><%= competitionName %>投票</h1>
+        <p class="muted small mb-0">请输入您的密码条</p>
+      </div>
+
+      <% if (!status.open) { %>
+        <div class="flash flash-<%= status.reason === 'ended' ? 'error' : 'info' %>">
+          <b><%= status.label %></b>
+          <% if (status.reason === 'pending' && status.startAt) { %>：将于 <%= fmtLocal(status.startAt) %> 开始<% } %>
+          <% if (status.reason === 'ended') { %>：投票已于 <%= fmtLocal(status.endAt) %> 截止<% } %>
+        </div>
+      <% } %>
+
+      <% if (loginError) { %>
+        <div class="flash flash-error"><%= loginError %></div>
+      <% } %>
+
+      <form method="post" action="/vote/login" autocomplete="off">
+        <input type="hidden" name="competition" value="<%= competition %>" />
+        <div class="field">
+          <input
+            type="text"
+            name="code"
+            class="code-input"
+            placeholder="XXXX-XXXX"
+            inputmode="text"
+            autocapitalize="characters"
+            autocorrect="off"
+            spellcheck="false"
+            maxlength="24"
+            autofocus
+            required
+          />
+          <div class="hint center">不区分大小写，可省略中间的横线</div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-lg btn-block">进入投票</button>
+      </form>
+    </div>
+
+    <p class="center muted tiny mt-2">
+      密码条由工作人员统一发放，两种权限类型（大众评审 / 专业评审）自动识别
+    </p>
+  </div>
+</div>
+
+<%- include('partials/foot') %>

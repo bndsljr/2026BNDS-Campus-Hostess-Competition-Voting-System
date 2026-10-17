@@ -1,0 +1,263 @@
+<%- include('partials/shell-top', { settings, pageTitle: '密码条管理 · 后台管理', nav, user, fmtLocal, serverNowIso, flash }) %>
+
+<div class="main-head">
+  <div>
+    <h1>密码条管理</h1>
+    <div class="sub">
+      密码条即投票身份凭证，一人一条，并绑定权限类型。同一条密码条可在小组赛与个人赛各投一次。
+    </div>
+  </div>
+  <div class="btn-group">
+    <a class="btn btn-sm" href="/manage/codes/print?role=public" target="_blank">🖨️ 打印大众评审密码条</a>
+    <a class="btn btn-sm" href="/manage/codes/print?role=pro" target="_blank">🖨️ 打印专业评审密码条</a>
+    <a class="btn btn-sm" href="/manage/codes/export">📥 导出清单</a>
+  </div>
+</div>
+
+<% if (counts.outOfRangeSlots && counts.outOfRangeSlots.length) { %>
+  <div class="flash flash-error">
+    ⚠️ 有密码条绑定了<b>超出范围</b>的评审席（<%= counts.outOfRangeSlots.join('、') %>），
+    这些密码条提交的打分<b>不会被计入成绩</b>。请到 <a href="/manage/scores">打分数数据</a> 页点「一键修正评审席」。
+  </div>
+<% } %>
+
+<div id="codesSummary">
+  <div class="stat-grid mb-2">
+    <div class="stat"><div class="label">大众评审密码条</div><div class="value"><%= counts.public %><span class="unit">条</span></div></div>
+    <div class="stat"><div class="label">专业评审密码条</div><div class="value"><%= counts.pro %><span class="unit">条</span></div></div>
+    <div class="stat"><div class="label">已启用</div><div class="value"><%= counts.enabled %><span class="unit">条</span></div></div>
+    <div class="stat"><div class="label">小组赛已投</div><div class="value"><%= counts.groupVoted %><span class="unit">条</span></div></div>
+    <div class="stat"><div class="label">个人赛已投</div><div class="value"><%= counts.individualVoted %><span class="unit">条</span></div></div>
+  </div>
+</div>
+
+<!-- ============================ 一键生成 ============================ -->
+<div class="card mb-2">
+  <div class="card-title">
+    <h3>⚡ 一键生成密码条</h3>
+    <span class="tiny muted">一次同时生成「大众评审」与「专业评审」两套，自动编号</span>
+  </div>
+
+  <form method="post" action="/manage/codes/generate" data-ajax data-refresh="#codesSummary,#codesList" id="genForm">
+    <div class="form-grid">
+      <div>
+        <label>大众评审数量（人）</label>
+        <input type="number" name="publicCount" value="<%= counts.public || 100 %>" min="0" max="1000" />
+        <div class="hint">按现场实际大众评审人数填写；填 0 表示不生成</div>
+      </div>
+      <div>
+        <label>专业评审数量（人）</label>
+        <input type="number" name="proCount" value="<%= counts.nextFreeSlot ? (counts.pro || counts.judgeCount) : 0 %>" min="0" max="50" />
+        <div class="hint">
+          <% if (counts.nextFreeSlot) { %>
+            共 <%= counts.judgeCount %> 个评审席，自动绑定空闲评审席
+          <% } else { %>
+            <b style="color:var(--err)">评审席已全部占用</b>，如需重新生成请选「清空后重新生成」，或先删除/停用多余的密码条
+          <% } %>
+        </div>
+      </div>
+      <div>
+        <label>起始评审席编号</label>
+        <input type="number" name="proSlotStart" value="<%= counts.nextFreeSlot || 1 %>" min="1" max="<%= counts.judgeCount %>" />
+        <div class="hint">
+          有效范围 <b>1 - <%= counts.judgeCount %></b>（来自「系统设置」的评审席位数）。
+          <% if (counts.usedSlots && counts.usedSlots.length) { %>
+            已占用 <%= counts.usedSlots.join('、') %>。
+          <% } %>
+          <% if (counts.nextFreeSlot) { %>
+            下一个空闲为 <b><%= counts.nextFreeSlot %></b>。
+          <% } else { %>
+            <b style="color:var(--err)">评审席已全部占用</b>，如需新增请先删除/停用多余的专业评审密码条。
+          <% } %>
+        </div>
+      </div>
+      <div>
+        <label>密码条长度</label>
+        <input type="number" name="length" value="8" min="6" max="16" />
+        <div class="hint">不含易混字符（0/O/1/I）</div>
+      </div>
+    </div>
+
+    <div class="mt-2">
+      <label>生成方式</label>
+      <label class="checkline" style="margin-bottom:6px">
+        <input type="radio" name="replace" value="0" checked />
+        <span><b>追加生成</b> —— 保留现有密码条，在末尾继续新增编号</span>
+      </label>
+      <label class="checkline">
+        <input type="radio" name="replace" value="1" />
+        <span><b>清空后重新生成</b> —— 删除现有全部密码条再生成（若已有密码条投过票则会被拒绝）</span>
+      </label>
+    </div>
+
+    <details class="help mt-2">
+      <summary>高级选项（可选）</summary>
+      <div class="form-grid mt-1">
+        <div>
+          <label>固定前缀</label>
+          <input type="text" name="prefix" placeholder="如 TV" maxlength="4" />
+        </div>
+        <div>
+          <label>大众评审标签前缀</label>
+          <input type="text" name="labelPrefixPublic" value="大众评审" />
+        </div>
+        <div>
+          <label>专业评审标签前缀</label>
+          <input type="text" name="labelPrefixPro" value="专业评审" />
+        </div>
+        <div>
+          <label>备注</label>
+          <input type="text" name="note" placeholder="如：2026 春季赛" />
+        </div>
+      </div>
+    </details>
+
+    <div class="row between mt-2">
+      <span class="tiny muted">
+        生成后请用上方的「打印」按钮打印发放；本页操作不会跳转，结果会即时反馈。
+      </span>
+      <button class="btn btn-primary btn-lg" type="submit">⚡ 一键生成</button>
+    </div>
+  </form>
+</div>
+
+<script>
+  // 选择「清空后重新生成」时弹二次确认
+  (function () {
+    var form = document.getElementById('genForm');
+    if (!form) return;
+    function sync() {
+      var picked = form.querySelector('input[name="replace"]:checked');
+      form.dataset.confirm = picked && picked.value === '1'
+        ? '确认删除现有全部密码条并重新生成？原有密码条将立即失效。'
+        : '';
+    }
+    form.querySelectorAll('input[name="replace"]').forEach(function (r) { r.addEventListener('change', sync); });
+    sync();
+  })();
+</script>
+
+<!-- ============================ 密码条列表 ============================ -->
+<div class="card" id="codesList">
+  <div class="card-title">
+    <h3>密码条列表（<%= codes.length %> 条）</h3>
+    <form method="get" action="/manage/codes" class="row" style="gap:6px">
+      <select name="role" onchange="this.form.submit()">
+        <option value="">全部权限</option>
+        <option value="public" <%= role === 'public' ? 'selected' : '' %>>大众评审</option>
+        <option value="pro" <%= role === 'pro' ? 'selected' : '' %>>专业评审</option>
+      </select>
+      <input type="search" name="q" value="<%= q || '' %>" placeholder="搜索密码条/标签" data-auto-submit style="width:170px" />
+      <button class="btn btn-sm" type="submit">搜索</button>
+    </form>
+  </div>
+
+  <% if (!codes.length) { %>
+    <div class="empty"><div class="big">🎫</div>还没有密码条，请在上方一键生成</div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>密码条</th>
+            <th>权限类型</th>
+            <th>标签</th>
+            <th>评审席</th>
+            <th>状态</th>
+            <th>小组赛</th>
+            <th>个人赛</th>
+            <th>最后登录</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% codes.forEach(function (c) { %>
+            <% var st = states.get(c.id) || { group: 0, individual: 0 }; %>
+            <tr>
+              <td>
+                <span class="code-chip"><%= c.code.replace(/(.{4})(?=.)/g, '$1-') %></span>
+                <button type="button" class="btn btn-sm" data-copy="<%= c.code.replace(/(.{4})(?=.)/g, '$1-') %>" style="margin-left:4px">复制</button>
+              </td>
+              <td>
+                <span class="badge <%= c.role === 'pro' ? 'badge-accent' : 'badge-brand' %>">
+                  <%= c.role === 'pro' ? '专业评审' : '大众评审' %>
+                </span>
+              </td>
+              <td><%= c.label || '-' %></td>
+              <td><%= c.judge_slot ? '评审 ' + c.judge_slot : '-' %></td>
+              <td><span class="badge <%= c.enabled ? 'badge-ok' : 'badge-err' %>"><%= c.enabled ? '启用' : '停用' %></span></td>
+              <td><span class="badge <%= st.group ? 'badge-ok' : '' %>"><%= st.group ? '已投' : '未投' %></span></td>
+              <td><span class="badge <%= st.individual ? 'badge-ok' : '' %>"><%= st.individual ? '已投' : '未投' %></span></td>
+              <td class="tiny muted"><%= c.last_login_at ? fmtLocal(c.last_login_at, false) : '从未' %></td>
+              <td>
+                <div class="btn-group">
+                  <button type="button" class="btn btn-sm" data-toggle-row="edit-<%= c.id %>">编辑</button>
+                  <form method="post" action="/manage/codes/toggle" data-ajax data-refresh="#codesSummary,#codesList">
+                    <input type="hidden" name="id" value="<%= c.id %>" />
+                    <input type="hidden" name="enabled" value="<%= c.enabled ? '0' : '1' %>" />
+                    <button class="btn btn-sm" type="submit"><%= c.enabled ? '停用' : '启用' %></button>
+                  </form>
+                  <form method="post" action="/manage/codes/reset" data-ajax data-refresh="#codesSummary,#codesList"
+                        data-confirm="确认重置该密码条的投票状态？其已提交的投票将被作废（保留记录），之后可重新投票。">
+                    <input type="hidden" name="id" value="<%= c.id %>" />
+                    <button class="btn btn-sm btn-danger" type="submit">重置投票</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+            <tr id="edit-<%= c.id %>" style="display:none;background:#f9fbff">
+              <td colspan="9">
+                <form method="post" action="/manage/codes/save" data-ajax data-refresh="#codesSummary,#codesList" class="row" style="gap:10px;align-items:flex-end">
+                  <input type="hidden" name="id" value="<%= c.id %>" />
+                  <div style="width:170px">
+                    <label>密码条内容</label>
+                    <input type="text" name="code" value="<%= c.code %>" class="mono" required />
+                  </div>
+                  <div style="width:150px">
+                    <label>权限类型</label>
+                    <select name="role">
+                      <option value="public" <%= c.role === 'public' ? 'selected' : '' %>>大众评审</option>
+                      <option value="pro" <%= c.role === 'pro' ? 'selected' : '' %>>专业评审</option>
+                    </select>
+                  </div>
+                  <div style="width:150px">
+                    <label>标签</label>
+                    <input type="text" name="label" value="<%= c.label || '' %>" />
+                  </div>
+                  <div style="width:110px">
+                    <label>评审席</label>
+                    <input type="number" name="judge_slot" value="<%= c.judge_slot || '' %>" min="1" max="20" />
+                  </div>
+                  <div style="width:180px">
+                    <label>备注</label>
+                    <input type="text" name="note" value="<%= c.note || '' %>" />
+                  </div>
+                  <label class="checkline" style="margin-bottom:8px">
+                    <input type="checkbox" name="enabled" <%= c.enabled ? 'checked' : '' %> /> 启用
+                  </label>
+                  <button class="btn btn-sm btn-primary" type="submit">保存</button>
+                  <span class="spacer"></span>
+                  <button class="btn btn-sm btn-danger" type="submit" formaction="/manage/codes/delete"
+                          data-confirm="确认删除该密码条？此操作不可恢复。">删除</button>
+                </form>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+
+<div class="card mt-2">
+  <div class="card-title"><h3>说明</h3></div>
+  <ul class="small muted" style="padding-left:18px;margin:0">
+    <li>密码条不区分大小写，登录时中间的横线可省略。</li>
+    <li>每条密码条在小组赛、个人赛各可投票一次；「重置投票」会作废其已提交记录并释放投票资格。</li>
+    <li>专业评审密码条必须绑定评审席编号（1-<%= judgeCount %>），分数才会归入对应的评审位。</li>
+    <li>如有大量测试数据需要删除，可到 <a href="/manage/reset">数据清空</a> 页一键处理（需输入密码确认）。</li>
+    <li>所有生成、修改、停用、重置操作都会记入 <a href="/manage/audit">操作日志</a>。</li>
+  </ul>
+</div>
+
+<%- include('partials/shell-bottom') %>

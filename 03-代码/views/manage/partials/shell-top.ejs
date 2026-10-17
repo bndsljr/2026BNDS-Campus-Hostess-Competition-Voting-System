@@ -1,0 +1,54 @@
+<%- include('../../partials/head', { settings, pageTitle }) %>
+<div class="admin">
+  <aside class="sidebar">
+    <div class="logo">
+      <img class="side-logo" src="/assets/img/logo.png" alt="BNDS TV" />
+      <div class="side-title"><%= settings.event_title %></div>
+      <small>后台管理面板</small>
+    </div>
+    <a href="/manage" class="<%= nav === 'dashboard' ? 'active' : '' %>">仪表盘</a>
+    <a href="/manage/players" class="<%= nav === 'players' ? 'active' : '' %>">选手管理</a>
+    <a href="/manage/codes" class="<%= nav === 'codes' ? 'active' : '' %>">密码条管理</a>
+    <div class="nav-sep"></div>
+    <a href="/manage/votes" class="<%= nav === 'votes' ? 'active' : '' %>">投票数据</a>
+    <a href="/manage/scores" class="<%= nav === 'scores' ? 'active' : '' %>">打分数数据</a>
+    <a href="/manage/manual" class="<%= nav === 'manual' ? 'active' : '' %>">手动赋分</a>
+    <a href="/manage/schedule" class="<%= nav === 'schedule' ? 'active' : '' %>">赛程与开关</a>
+    <a href="/manage/results" class="<%= nav === 'results' ? 'active' : '' %>">结果与排名</a>
+    <div class="nav-sep"></div>
+    <a href="/manage/export" class="<%= nav === 'export' ? 'active' : '' %>">数据导出</a>
+    <a href="/manage/audit" class="<%= nav === 'audit' ? 'active' : '' %>">操作日志</a>
+    <a href="/manage/reset" class="<%= nav === 'reset' ? 'active' : '' %>">数据清空</a>
+    <a href="/manage/settings" class="<%= nav === 'settings' ? 'active' : '' %>">系统设置</a>
+    <div class="nav-sep"></div>
+    <a href="/manage/board" target="_blank">排名公示榜（预览）</a>
+    <a href="/vote/group" target="_blank">小组赛前台</a>
+    <a href="/vote/individual" target="_blank">个人赛前台</a>
+    <a href="/manage/logout">退出登录</a>
+    <div class="side-foot">
+      登录身份：<%= user.username %><br />
+      服务器时间：<%= fmtLocal(serverNowIso) %>
+    </div>
+  </aside>
+
+  <div class="main" id="mainContent">
+    <div class="mobile-nav">
+      <img class="brand-logo" src="/assets/img/logo-sm.png" alt="BNDS TV" style="height:26px;margin-bottom:8px" />
+      <select onchange="if(this.value)location.href=this.value">
+        <option value="">菜单导航</option>
+        <option value="/manage" <%= nav === 'dashboard' ? 'selected' : '' %>>仪表盘</option>
+        <option value="/manage/players" <%= nav === 'players' ? 'selected' : '' %>>选手管理</option>
+        <option value="/manage/codes" <%= nav === 'codes' ? 'selected' : '' %>>密码条管理</option>
+        <option value="/manage/votes" <%= nav === 'votes' ? 'selected' : '' %>>投票数据</option>
+        <option value="/manage/scores" <%= nav === 'scores' ? 'selected' : '' %>>打分数数据</option>
+        <option value="/manage/manual" <%= nav === 'manual' ? 'selected' : '' %>>手动赋分</option>
+        <option value="/manage/schedule" <%= nav === 'schedule' ? 'selected' : '' %>>赛程与开关</option>
+        <option value="/manage/results" <%= nav === 'results' ? 'selected' : '' %>>结果与排名</option>
+        <option value="/manage/export" <%= nav === 'export' ? 'selected' : '' %>>数据导出</option>
+        <option value="/manage/audit" <%= nav === 'audit' ? 'selected' : '' %>>操作日志</option>
+        <option value="/manage/reset" <%= nav === 'reset' ? 'selected' : '' %>>数据清空</option>
+        <option value="/manage/settings" <%= nav === 'settings' ? 'selected' : '' %>>系统设置</option>
+        <option value="/manage/logout">退出登录</option>
+      </select>
+    </div>
+    <%- include('../../partials/flash') %>

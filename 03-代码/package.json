@@ -1,0 +1,27 @@
+{
+  "name": "hostvote-2026",
+  "version": "1.0.0",
+  "private": true,
+  "description": "2026 主持人大赛投票系统 — 小组赛/个人赛双入口 + 密码条双权限 + 自动计分排名 + 透明化导出",
+  "type": "module",
+  "main": "server.js",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test test/*.test.js",
+    "reset": "node scripts/reset.js"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.0.2",
+    "@fastify/formbody": "^8.0.2",
+    "@fastify/multipart": "^9.0.3",
+    "@fastify/static": "^8.0.4",
+    "bcryptjs": "^3.0.2",
+    "ejs": "^3.1.10",
+    "exceljs": "^4.4.0",
+    "fastify": "^5.2.1"
+  }
+}
